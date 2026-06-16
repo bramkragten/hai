@@ -355,8 +355,11 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     mod macos_tests {
-        use super::macos::{get_primary_network_interface, get_utm_version, run_applescript, start_vm, check_utm_status};
         use super::create_vm;
+        use super::macos::{
+            check_utm_status, get_primary_network_interface, get_utm_version, run_applescript,
+            start_vm,
+        };
         use crate::error::Error;
         use crate::types::UtmVmConfig;
 
@@ -428,10 +431,11 @@ mod tests {
             if let Err(e) = result {
                 let error_msg = format!("{}", e);
                 assert!(
-                    error_msg.contains("UTM is not installed") ||
-                    error_msg.contains("Image file not found") ||
-                    error_msg.contains("Failed to execute AppleScript"),
-                    "Unexpected error: {}", error_msg
+                    error_msg.contains("UTM is not installed")
+                        || error_msg.contains("Image file not found")
+                        || error_msg.contains("Failed to execute AppleScript"),
+                    "Unexpected error: {}",
+                    error_msg
                 );
             }
         }
@@ -463,9 +467,10 @@ mod tests {
                 let error_msg = format!("{}", e);
                 // Either UTM is not installed or the image file is not found
                 assert!(
-                    error_msg.contains("UTM is not installed") ||
-                    error_msg.contains("Image file not found"),
-                    "Expected specific error, got: {}", error_msg
+                    error_msg.contains("UTM is not installed")
+                        || error_msg.contains("Image file not found"),
+                    "Expected specific error, got: {}",
+                    error_msg
                 );
             }
         }
@@ -543,7 +548,10 @@ mod tests {
             let result = get_utm_version(test_file.to_str().unwrap());
 
             // Should return None when the value is not a string
-            assert!(result.is_none(), "Should return None when version is not a string");
+            assert!(
+                result.is_none(),
+                "Should return None when version is not a string"
+            );
 
             // Cleanup
             let _ = std::fs::remove_file(test_file);
@@ -572,7 +580,10 @@ mod tests {
             let result = get_utm_version(test_file.to_str().unwrap());
 
             // Should return None when root is not a dictionary
-            assert!(result.is_none(), "Should return None when plist root is not a dictionary");
+            assert!(
+                result.is_none(),
+                "Should return None when plist root is not a dictionary"
+            );
 
             // Cleanup
             let _ = std::fs::remove_file(test_file);
@@ -616,9 +627,11 @@ mod tests {
                     let error_msg = format!("{}", e);
                     // The error should be about UTM or AppleScript, not about the image file
                     assert!(
-                        error_msg.contains("UTM") || error_msg.contains("AppleScript") ||
-                        error_msg.contains("virtual machine"),
-                        "Expected UTM/AppleScript/VM error after image check, got: {}", error_msg
+                        error_msg.contains("UTM")
+                            || error_msg.contains("AppleScript")
+                            || error_msg.contains("virtual machine"),
+                        "Expected UTM/AppleScript/VM error after image check, got: {}",
+                        error_msg
                     );
                 }
             }
@@ -651,7 +664,10 @@ mod tests {
             let result = get_utm_version(test_file.to_str().unwrap());
 
             // Should return None for invalid plist content
-            assert!(result.is_none(), "Should return None for invalid plist file");
+            assert!(
+                result.is_none(),
+                "Should return None for invalid plist file"
+            );
 
             // Cleanup
             let _ = std::fs::remove_file(test_file);
@@ -681,7 +697,10 @@ mod tests {
             let result = get_utm_version(test_file.to_str().unwrap());
 
             // Should return None when CFBundleShortVersionString is missing
-            assert!(result.is_none(), "Should return None when version key is missing");
+            assert!(
+                result.is_none(),
+                "Should return None when version key is missing"
+            );
 
             // Cleanup
             let _ = std::fs::remove_file(test_file);
@@ -713,7 +732,10 @@ mod tests {
             let result = get_utm_version(test_file.to_str().unwrap());
 
             // Should return the version string
-            assert!(result.is_some(), "Should return Some for valid plist with version");
+            assert!(
+                result.is_some(),
+                "Should return Some for valid plist with version"
+            );
             assert_eq!(result.unwrap(), "4.5.0", "Should extract correct version");
 
             // Cleanup
