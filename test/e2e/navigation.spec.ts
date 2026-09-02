@@ -519,12 +519,27 @@ test.describe("SBC Confirmation", () => {
     const dialog = page.locator("confirm-dialog[open]");
     await expect(dialog).toBeVisible();
 
+    // Count the dismiss events: cancelling and dismissing share dialog-cancel,
+    // so the dialog syncing its own open state must not report a second one.
+    await page.evaluate(() => {
+      const w = window as Window & { __cancels?: number };
+      w.__cancels = 0;
+      document.addEventListener("dialog-cancel", () => {
+        w.__cancels = (w.__cancels ?? 0) + 1;
+      });
+    });
+
     // Press Escape — exercises the real wa-dialog dismissal path
     await page.keyboard.press("Escape");
 
     // Dialog should close and stay on the confirmation view (dismiss = cancel)
     await expect(page.locator("confirm-dialog[open]")).not.toBeVisible();
     await expect(page.locator("confirmation-view")).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __cancels?: number }).__cancels
+      )
+    ).toBe(1);
   });
 
   test("confirmation dialog can be confirmed", async ({ page }) => {

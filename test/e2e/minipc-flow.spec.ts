@@ -139,12 +139,28 @@ test.describe("Mini PC Flow - Setup Method Selection", () => {
     const infoDialog = page.locator("info-dialog");
     await expect(infoDialog).toBeVisible();
 
+    // Count the dismiss events: the secondary action and dismissal share
+    // dialog-secondary, so the dialog syncing its own open state must not
+    // report a second one.
+    await page.evaluate(() => {
+      const w = window as Window & { __dismissals?: number };
+      w.__dismissals = 0;
+      document.addEventListener("dialog-secondary", () => {
+        w.__dismissals = (w.__dismissals ?? 0) + 1;
+      });
+    });
+
     // Press Escape — exercises the real wa-dialog dismissal path
     await page.keyboard.press("Escape");
 
     // Dialog should close, setup method view should still be visible
     await expect(infoDialog).not.toBeVisible();
     await expect(setupView).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __dismissals?: number }).__dismissals
+      )
+    ).toBe(1);
   });
 
   test("clicking connect drive navigates to architecture selection", async ({
