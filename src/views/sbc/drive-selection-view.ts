@@ -411,7 +411,7 @@ export class DriveSelectionView extends LitElement {
         </wa-button>
       </div>
 
-      <div class="drives-list">
+      <div class="drives-list" role="radiogroup" aria-label="Target drive">
         ${[...this._drives]
           .sort((a, b) => {
             const minSize = this._getMinimumDriveSize();
