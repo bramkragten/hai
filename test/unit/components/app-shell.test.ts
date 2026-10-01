@@ -5,6 +5,7 @@ import type { ConfirmDialog } from "../../../src/components/confirm-dialog.js";
 import { MOCK_BLOCK_DEVICES } from "../../../src/api/mock-data.js";
 import { wizardState } from "../../../src/state/wizard-state.js";
 import { storeDriveSelection } from "../../../src/utils/drive-selection.js";
+import { flush, holdDeviceScan } from "../helpers/hold-device-scan.js";
 
 // Browser-only mode (no Tauri) serves MOCK_BLOCK_DEVICES, so this is the drive
 // that is "connected" for the duration of these tests.
@@ -108,6 +109,23 @@ describe("app-shell", () => {
       );
       expect(wizardState.currentStep!.id).to.equal("drive");
       expect(dialogOf(el).hasAttribute("open")).to.be.false;
+    });
+
+    it("ignores a check that finishes after the user went back", async () => {
+      const scan = holdDeviceScan();
+      try {
+        fire(shellOf(el), "wizard-next");
+        await waitUntil(() => shellOf(el).nextLabel === "Checking drive...");
+
+        wizardState.previousStep();
+        scan.resolve(MOCK_BLOCK_DEVICES);
+        await flush();
+
+        expect(dialogOf(el).hasAttribute("open")).to.be.false;
+        expect(wizardState.currentStep!.id).to.equal("drive");
+      } finally {
+        scan.restore();
+      }
     });
 
     // The dialog can stay open for any length of time, so the device is

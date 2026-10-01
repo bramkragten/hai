@@ -246,20 +246,27 @@ export class DriveSelectionView extends LitElement {
     this._loading = true;
     this._error = null;
 
+    let drives: BlockDevice[];
+    let error: string | null = null;
     try {
-      const drives = await listBlockDevices();
-      this._drives = drives.filter(isEligibleFlashTarget);
-      this._reconcileSelection();
+      drives = (await listBlockDevices()).filter(isEligibleFlashTarget);
     } catch (err) {
-      this._error =
-        err instanceof Error ? err.message : "Failed to load drives";
+      error = err instanceof Error ? err.message : "Failed to load drives";
       // The scan failed, so the selection cannot be confirmed. Drop it rather
       // than let a stale path through to the write.
-      this._drives = [];
-      this._reconcileSelection();
-    } finally {
-      this._loading = false;
+      drives = [];
     }
+
+    // The user left this step while the scan ran. The wizard state may now
+    // belong to a new flow, so this result must not touch it.
+    if (!this.isConnected) {
+      return;
+    }
+
+    this._drives = drives;
+    this._error = error;
+    this._loading = false;
+    this._reconcileSelection();
   }
 
   /**

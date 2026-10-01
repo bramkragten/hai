@@ -483,16 +483,19 @@ export class AppShell extends LitElement {
    * Confirm the selected path still belongs to the same device; the OS can
    * hand it to another one. On failure, go back to the drive step, which
    * re-scans and explains why the selection was cleared.
+   *
+   * Resolves false without acting if the user navigated, cancelled or changed
+   * the selection while the scan ran: the result no longer applies.
    */
   private async _verifySelectedDrive(): Promise<boolean> {
-    const selection = readDriveSelection(this._wizardState.selections);
+    const started = wizardState.getState();
+    const selection = readDriveSelection(started.selections);
+    let found = false;
 
     if (selection) {
       this._verifyingDrive = true;
       try {
-        if (findDrive(await listBlockDevices(), selection)) {
-          return true;
-        }
+        found = !!findDrive(await listBlockDevices(), selection);
       } catch {
         // The scan failed, so the device cannot be confirmed. Treat that the
         // same as a device that is gone.
@@ -501,8 +504,19 @@ export class AppShell extends LitElement {
       }
     }
 
-    this._goToDriveStep();
-    return false;
+    // Every navigation, cancel or selection change replaces these.
+    const current = wizardState.getState();
+    if (
+      current.selections !== started.selections ||
+      current.currentStepIndex !== started.currentStepIndex
+    ) {
+      return false;
+    }
+
+    if (!found) {
+      this._goToDriveStep();
+    }
+    return found;
   }
 
   private _goToDriveStep() {

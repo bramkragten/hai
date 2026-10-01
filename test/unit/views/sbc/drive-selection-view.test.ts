@@ -8,6 +8,7 @@ import { MOCK_BLOCK_DEVICES } from "../../../../src/api/mock-data.js";
 import { wizardState } from "../../../../src/state/wizard-state.js";
 import { storeDriveSelection } from "../../../../src/utils/drive-selection.js";
 import type { BlockDevice } from "../../../../src/api/index.js";
+import { flush, holdDeviceScan } from "../../helpers/hold-device-scan.js";
 
 // Browser-only mode (no Tauri) serves MOCK_BLOCK_DEVICES, so those are the
 // drives "connected" for the duration of these tests.
@@ -51,6 +52,26 @@ describe("drive-selection-view", () => {
     expect(wizardState.getState().selections.drive).to.be.undefined;
     expect(selectedIds(el)).to.be.empty;
     expect(el.shadowRoot!.querySelector(".notice")).to.exist;
+  });
+
+  it("ignores a scan that finishes after the view is gone", async () => {
+    const scan = holdDeviceScan();
+    try {
+      const el = await fixture<DriveSelectionView>(html`
+        <drive-selection-view></drive-selection-view>
+      `);
+      // The user cancels and starts over before the scan returns.
+      el.remove();
+      wizardState.startFlow("sbc");
+      storeDriveSelection(CONNECTED);
+
+      scan.reject(new Error("scan failed"));
+      await flush();
+
+      expect(wizardState.getState().selections.drive).to.equal(CONNECTED.id);
+    } finally {
+      scan.restore();
+    }
   });
 
   it("announces a selection dropped on refresh through a live region", async () => {
