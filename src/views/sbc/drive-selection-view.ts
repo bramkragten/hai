@@ -5,23 +5,17 @@ import { wizardState } from "../../state/wizard-state.js";
 import {
   clearDriveSelection,
   findDrive,
+  isEligibleFlashTarget,
   readDriveSelection,
   storeDriveSelection,
 } from "../../utils/drive-selection.js";
 import "@home-assistant/webawesome/dist/components/button/button.js";
 import "../../components/drive-card.js";
 
-/** Drives smaller than this (1 GB) are not offered as flash targets. */
-export const MIN_DRIVE_SIZE_BYTES = 1_000_000_000;
-
-/**
- * Enumeration now returns every disk, internal ones included, so this is the
- * gate for what the SBC flow offers: a drive must be removable and at least
- * {@link MIN_DRIVE_SIZE_BYTES}.
- */
-export function isEligibleFlashTarget(drive: BlockDevice): boolean {
-  return drive.removable && drive.size >= MIN_DRIVE_SIZE_BYTES;
-}
+export {
+  isEligibleFlashTarget,
+  MIN_DRIVE_SIZE_BYTES,
+} from "../../utils/drive-selection.js";
 
 @customElement("drive-selection-view")
 export class DriveSelectionView extends LitElement {

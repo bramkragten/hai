@@ -3,7 +3,9 @@ import type { BlockDevice } from "../../../src/api/types.js";
 import { wizardState } from "../../../src/state/wizard-state.js";
 import {
   driveIdentity,
+  findDrive,
   isSameDrive,
+  MIN_DRIVE_SIZE_BYTES,
   readDriveSelection,
   storeDriveSelection,
 } from "../../../src/utils/drive-selection.js";
@@ -45,6 +47,18 @@ describe("drive-selection", () => {
       const unknown = { ...driveIdentity(makeDrive()), size: undefined };
       expect(isSameDrive(unknown, driveIdentity(makeDrive()))).to.be.false;
     });
+  });
+
+  // The re-checks before erasing must accept exactly what the picker offers,
+  // even when a drive it would hide matches on every identifying field.
+  it("finds only drives the picker would offer", () => {
+    for (const hidden of [
+      makeDrive({ removable: false }),
+      makeDrive({ size: MIN_DRIVE_SIZE_BYTES - 1 }),
+    ]) {
+      expect(findDrive([hidden], driveIdentity(hidden))).to.be.null;
+    }
+    expect(findDrive([makeDrive()], driveIdentity(makeDrive()))).to.exist;
   });
 
   it("stores the full identity, not just the path", () => {

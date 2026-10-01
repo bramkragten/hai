@@ -48,13 +48,31 @@ export function isSameDrive(a: DriveIdentity, b: DriveIdentity): boolean {
   );
 }
 
-/** The drive in `drives` that is still the one described by `identity`. */
+/** Drives smaller than this (1 GB) are not offered as flash targets. */
+export const MIN_DRIVE_SIZE_BYTES = 1_000_000_000;
+
+/**
+ * Enumeration returns every disk, internal ones included, so this is the gate
+ * for what the SBC flow offers: a drive must be removable and at least
+ * {@link MIN_DRIVE_SIZE_BYTES}. The pre-erase re-checks use it too, so they
+ * accept exactly the drives the picker offers.
+ */
+export function isEligibleFlashTarget(drive: BlockDevice): boolean {
+  return drive.removable && drive.size >= MIN_DRIVE_SIZE_BYTES;
+}
+
+/**
+ * The eligible drive in `drives` that is still the one described by
+ * `identity`.
+ */
 export function findDrive(
   drives: BlockDevice[],
   identity: DriveIdentity
 ): BlockDevice | null {
   return (
-    drives.find((drive) => isSameDrive(driveIdentity(drive), identity)) ?? null
+    drives
+      .filter(isEligibleFlashTarget)
+      .find((drive) => isSameDrive(driveIdentity(drive), identity)) ?? null
   );
 }
 
