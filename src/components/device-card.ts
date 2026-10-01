@@ -56,9 +56,8 @@ export class DeviceCard extends WaRadio {
       }
 
       :host(:focus-visible) .card {
-        border-color: var(--ha-primary-color, #03a9f4);
-        outline: 2px solid var(--ha-primary-color, #03a9f4);
-        outline-offset: 2px;
+        outline: var(--wa-focus-ring);
+        outline-offset: var(--wa-focus-ring-offset);
       }
 
       .image-container {

@@ -28,6 +28,8 @@ describe("option-card", () => {
     const img = el.shadowRoot!.querySelector(".icon-container img");
     expect(img).to.exist;
     expect(img!.getAttribute("src")).to.include("sbc-placeholder.svg");
+    // Decorative: the title already names the button.
+    expect(img!.getAttribute("alt")).to.equal("");
   });
 
   it("renders with a custom image", async () => {
@@ -38,6 +40,7 @@ describe("option-card", () => {
     const img = el.shadowRoot!.querySelector(".icon-container img");
     expect(img).to.exist;
     expect(img!.getAttribute("src")).to.equal("/custom/path.svg");
+    expect(img!.getAttribute("alt")).to.equal("");
   });
 
   it("renders placeholder when no icon or image provided", async () => {
