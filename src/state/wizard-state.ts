@@ -32,6 +32,8 @@ export interface WizardSelections {
   /** UTM install progress, so a retry resumes instead of starting over. */
   utmImagePath?: string;
   vmId?: string;
+  /** Set once the disk of the VM in `vmId` has been resized. */
+  utmDiskResized?: boolean;
 
   /** Proxmox target picked in the "Configure VM" step. */
   proxmoxSession?: ProxmoxSession;

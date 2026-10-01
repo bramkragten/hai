@@ -472,10 +472,15 @@ export class UtmProgressView extends LitElement {
         vmId = await createUtmVm(config);
         throwIfCancelled(signal);
         wizardState.setSelection("vmId", vmId);
+      }
 
-        // Only applies to the disk image this VM was just created with
+      // Tracked separately from `vmId`: if the resize fails after the VM was
+      // created, a retry must resize it rather than start an undersized VM.
+      if (!selections.utmDiskResized) {
+        this._startStage("creating");
         await resizeUtmVmDisk(vmId, diskSizeGb);
         throwIfCancelled(signal);
+        wizardState.setSelection("utmDiskResized", true);
       }
 
       this._startStage("starting");

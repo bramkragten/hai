@@ -96,6 +96,8 @@ export async function pollUntil<T>(
   for (;;) {
     try {
       const result = await check();
+      // Cancelled while `check` was pending - a late result must not count
+      throwIfCancelled(signal);
       if (result !== null && result !== undefined) {
         return result;
       }

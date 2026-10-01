@@ -8,6 +8,7 @@ import {
 import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/utm/utm-progress-view.js";
 import type { UtmProgressView } from "../../../../src/views/utm/utm-progress-view.js";
+import { mockTauriIpc, restoreTauriIpc } from "../../tauri-ipc.js";
 
 /** The install pipeline's cancellation handle, which is private to the view */
 function abortSignalOf(el: UtmProgressView): AbortSignal | undefined {
@@ -32,6 +33,7 @@ describe("utm-progress-view", () => {
 
   afterEach(() => {
     wizardState.reset();
+    restoreTauriIpc();
   });
 
   it("starts the install when connected", async () => {
@@ -101,5 +103,50 @@ describe("utm-progress-view", () => {
 
     // Straight to creating the VM rather than downloading all over again
     expect(el.shadowRoot!.textContent).to.contain("Creating virtual machine");
+  });
+
+  it("retries a failed disk resize instead of starting an undersized VM", async () => {
+    wizardState.setSelection("utmImagePath", "/tmp/haos.qcow2");
+
+    const calls: string[] = [];
+    let resizeAttempts = 0;
+    mockTauriIpc((cmd) => {
+      calls.push(cmd);
+      switch (cmd) {
+        case "create_utm_vm":
+          return "new-vm";
+        case "resize_utm_vm_disk":
+          resizeAttempts++;
+          if (resizeAttempts === 1) throw new Error("resize failed");
+          return undefined;
+        case "get_utm_vm_status":
+          return { status: "started", ip_address: "192.168.1.100" };
+        case "check_ha_ready":
+        case "check_ha_updated":
+          return true;
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    const el = mount();
+    await oneEvent(el, "install-error");
+
+    // The VM exists, but its disk was never resized
+    let selections = wizardState.getState().selections;
+    expect(selections.vmId).to.equal("new-vm");
+    expect(selections.utmDiskResized).to.not.be.true;
+    expect(calls, "VM started with an unresized disk").to.not.include(
+      "get_utm_vm_status"
+    );
+
+    const completed = oneEvent(el, "install-complete");
+    el.retry();
+    await completed;
+
+    selections = wizardState.getState().selections;
+    expect(selections.utmDiskResized).to.be.true;
+    // The retry resized the existing VM rather than creating another one
+    expect(calls.filter((c) => c === "create_utm_vm")).to.have.length(1);
+    expect(resizeAttempts).to.equal(2);
   });
 });

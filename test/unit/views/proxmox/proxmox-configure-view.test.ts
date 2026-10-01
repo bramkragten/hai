@@ -1,7 +1,20 @@
-import { expect, fixture, html, waitUntil } from "@open-wc/testing";
+import {
+  expect,
+  fixture,
+  fixtureSync,
+  html,
+  waitUntil,
+} from "@open-wc/testing";
+import type { ProxmoxStorage } from "../../../../src/api/types.js";
 import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/proxmox/proxmox-configure-view.js";
 import type { ProxmoxConfigureView } from "../../../../src/views/proxmox/proxmox-configure-view.js";
+import {
+  deferred,
+  mockTauriIpc,
+  restoreTauriIpc,
+  settle,
+} from "../../tauri-ipc.js";
 
 /** Mount the view and wait for the node and storage lookups to settle */
 async function mount(): Promise<ProxmoxConfigureView> {
@@ -32,6 +45,7 @@ describe("proxmox-configure-view", () => {
 
   afterEach(() => {
     wizardState.reset();
+    restoreTauriIpc();
   });
 
   it("saves the defaults on a first visit", async () => {
@@ -90,5 +104,46 @@ describe("proxmox-configure-view", () => {
     await mount();
 
     expect(wizardState.getState().selections.proxmoxStorage).to.equal("local");
+  });
+
+  it("does not save after being detached during the storage lookup", async () => {
+    const storageCalled = deferred<void>();
+    const storage = deferred<ProxmoxStorage[]>();
+    mockTauriIpc((cmd) => {
+      switch (cmd) {
+        case "proxmox_list_nodes":
+          return [{ name: "pve", status: "online" }];
+        case "proxmox_get_next_vm_id":
+          return 100;
+        case "proxmox_list_storage":
+          storageCalled.resolve();
+          return storage.promise;
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    const el = fixtureSync<ProxmoxConfigureView>(html`
+      <proxmox-configure-view></proxmox-configure-view>
+    `);
+    await storageCalled.promise;
+
+    // Leave the step while storage is still loading, then let it finish
+    el.remove();
+    storage.resolve([
+      {
+        name: "local",
+        storage_type: "dir",
+        content: ["images"],
+        available: 100,
+        total: 100,
+        active: true,
+      },
+    ]);
+    await settle();
+
+    const selections = wizardState.getState().selections;
+    expect(selections.proxmoxNode).to.be.undefined;
+    expect(selections.proxmoxStorage).to.be.undefined;
+    expect(selections.proxmoxVmId).to.be.undefined;
   });
 });

@@ -186,6 +186,23 @@ describe("polling", () => {
       expect(calls).to.equal(1);
     });
 
+    it("discards a result that arrives after the signal aborted", async () => {
+      const controller = new AbortController();
+
+      let error: unknown;
+      try {
+        // Cancelled while the check was in flight, which then still succeeds
+        await pollUntil(async () => {
+          controller.abort();
+          return "192.168.1.10";
+        }, pollOptions(controller.signal));
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.be.instanceOf(CancelledError);
+    });
+
     it("propagates cancellation raised by the check itself", async () => {
       const controller = new AbortController();
 

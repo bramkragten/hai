@@ -382,6 +382,8 @@ export class ProxmoxConfigureView extends LitElement {
 
       if (this._selectedNode) {
         await this._loadStorage();
+        // The storage lookup is another chance to have left this step
+        if (!this.isConnected) return;
       }
 
       this._saveSelections();

@@ -265,8 +265,11 @@ export class UtmConfigureView extends LitElement {
       this._saveSelections();
     } catch (error) {
       console.error("Failed to get system info:", error);
-      // Keep the restored values (or defaults)
-      this._saveSelections();
+      // Keep the restored values (or defaults), unless this step was left
+      // while the lookup was in flight
+      if (this.isConnected) {
+        this._saveSelections();
+      }
     }
   }
 

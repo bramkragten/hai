@@ -1,12 +1,36 @@
-import { aTimeout, expect, fixtureSync, html } from "@open-wc/testing";
+import { expect, fixtureSync, html } from "@open-wc/testing";
+import type { ProxmoxVmResult } from "../../../../src/api/types.js";
 import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/proxmox/proxmox-progress-view.js";
 import type { ProxmoxProgressView } from "../../../../src/views/proxmox/proxmox-progress-view.js";
+import {
+  deferred,
+  mockTauriIpc,
+  restoreTauriIpc,
+  settle,
+} from "../../tauri-ipc.js";
 
 /** The install pipeline's cancellation handle, which is private to the view */
 function abortSignalOf(el: ProxmoxProgressView): AbortSignal | undefined {
   return (el as unknown as { _abortController?: AbortController })
     ._abortController?.signal;
+}
+
+/**
+ * Hold `proxmox_create_vm` open until the test resolves it, instead of
+ * running the multi-second browser-only simulation.
+ */
+function mockCreateVm() {
+  const called = deferred<void>();
+  const result = deferred<ProxmoxVmResult>();
+  mockTauriIpc((cmd) => {
+    if (cmd === "proxmox_create_vm") {
+      called.resolve();
+      return result.promise;
+    }
+    throw new Error(`Unexpected IPC command: ${cmd}`);
+  });
+  return { called: called.promise, resolve: result.resolve };
 }
 
 /**
@@ -31,6 +55,7 @@ describe("proxmox-progress-view", () => {
 
   afterEach(() => {
     wizardState.reset();
+    restoreTauriIpc();
   });
 
   it("starts the install when connected", async () => {
@@ -50,6 +75,7 @@ describe("proxmox-progress-view", () => {
   });
 
   it("does not touch the wizard or advance it after being detached", async () => {
+    const createVm = mockCreateVm();
     const el = mount();
     let completed = false;
     let errored = false;
@@ -60,12 +86,45 @@ describe("proxmox-progress-view", () => {
       errored = true;
     });
 
+    // Detach while the backend call is in flight, then let it succeed
+    await createVm.called;
     el.remove();
-    await aTimeout(50);
+    createVm.resolve({
+      vm_id: 100,
+      node: "pve",
+      ip_address: "192.168.1.50",
+    });
+    await settle();
 
     expect(completed, "install-complete fired after detach").to.be.false;
     expect(errored, "install-error fired after detach").to.be.false;
-    expect(wizardState.getState().selections.proxmoxVmResult).to.be.undefined;
+    const selections = wizardState.getState().selections;
+    expect(selections.proxmoxVmResult).to.be.undefined;
+    expect(selections.ipAddress).to.be.undefined;
+  });
+
+  it("stores the result and advances when the install succeeds", async () => {
+    const createVm = mockCreateVm();
+    const el = mount();
+    let completed = false;
+    el.addEventListener("install-complete", () => {
+      completed = true;
+    });
+
+    await createVm.called;
+    createVm.resolve({
+      vm_id: 100,
+      node: "pve",
+      ip_address: "192.168.1.50",
+    });
+    await settle();
+
+    // The same harness does observe the result while attached, so the
+    // detached test above is not passing just because nothing ran
+    expect(completed).to.be.true;
+    expect(wizardState.getState().selections.ipAddress).to.equal(
+      "192.168.1.50"
+    );
   });
 
   it("reports an error without starting when there is no session", async () => {

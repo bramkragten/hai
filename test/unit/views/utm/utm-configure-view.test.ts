@@ -1,7 +1,19 @@
-import { expect, fixture, html, waitUntil } from "@open-wc/testing";
+import {
+  expect,
+  fixture,
+  fixtureSync,
+  html,
+  waitUntil,
+} from "@open-wc/testing";
 import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/utm/utm-configure-view.js";
 import type { UtmConfigureView } from "../../../../src/views/utm/utm-configure-view.js";
+import {
+  deferred,
+  mockTauriIpc,
+  restoreTauriIpc,
+  settle,
+} from "../../tauri-ipc.js";
 
 /** Mount the view and wait for the system-info lookup to settle */
 async function mount(): Promise<UtmConfigureView> {
@@ -23,6 +35,7 @@ describe("utm-configure-view", () => {
 
   afterEach(() => {
     wizardState.reset();
+    restoreTauriIpc();
   });
 
   it("saves the defaults on a first visit", async () => {
@@ -76,5 +89,35 @@ describe("utm-configure-view", () => {
     const selections = wizardState.getState().selections;
     expect(selections.cpuCores).to.equal(10);
     expect(selections.memoryMb).to.equal(24576);
+  });
+
+  it("does not save after being detached when the lookup fails", async () => {
+    const systemInfo = deferred<never>();
+    mockTauriIpc((cmd) => {
+      if (cmd === "get_system_info") return systemInfo.promise;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    const el = fixtureSync<UtmConfigureView>(html`
+      <utm-configure-view></utm-configure-view>
+    `);
+
+    // Leave the step while the lookup is in flight, then let it fail
+    el.remove();
+    systemInfo.reject("system info unavailable");
+    await settle();
+
+    expect(wizardState.getState().selections.cpuCores).to.be.undefined;
+  });
+
+  it("keeps the defaults when the lookup fails while attached", async () => {
+    mockTauriIpc((cmd) => {
+      if (cmd === "get_system_info") throw "system info unavailable";
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    await mount();
+
+    expect(wizardState.getState().selections.cpuCores).to.equal(4);
   });
 });
