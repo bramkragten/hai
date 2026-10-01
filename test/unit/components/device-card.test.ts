@@ -2,6 +2,7 @@ import { expect, fixture, fixtureSync, html } from "@open-wc/testing";
 import "@home-assistant/webawesome/dist/components/radio-group/radio-group.js";
 import "../../../src/components/device-card.js";
 import type { DeviceCard } from "../../../src/components/device-card.js";
+import { findByRole, fullA11ySnapshot } from "../helpers/a11y.js";
 
 describe("device-card", () => {
   it("renders with name", async () => {
@@ -118,6 +119,17 @@ describe("device-card", () => {
 
     const cards = (root: HTMLElement) =>
       Array.from(root.querySelectorAll<DeviceCard>("device-card"));
+
+    // The radiogroup role lives on the group's shadow <fieldset>; the
+    // group forwards its aria-label there, so that is what gets named.
+    it("names the radiogroup from the group's aria-label", async () => {
+      await group();
+      const groups = findByRole(await fullA11ySnapshot(), "radiogroup");
+
+      expect(groups).to.have.length(1);
+      expect(groups[0]!.name).to.equal("Device");
+      expect(findByRole(groups[0]!, "radio")).to.have.length(3);
+    });
 
     it("gives the group a single roving tab stop", async () => {
       const root = await group();
