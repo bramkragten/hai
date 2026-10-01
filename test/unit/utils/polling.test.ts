@@ -203,6 +203,90 @@ describe("polling", () => {
       expect(error).to.be.instanceOf(CancelledError);
     });
 
+    it("times out while a check hangs", async () => {
+      const controller = new AbortController();
+
+      let error: unknown;
+      try {
+        await pollUntil(
+          () => new Promise<string>(() => {}),
+          pollOptions(controller.signal, 20)
+        );
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.be.instanceOf(PollTimeoutError);
+    });
+
+    it("rejects a result that only arrives after the deadline", async () => {
+      const controller = new AbortController();
+      let settledLate = false;
+
+      let error: unknown;
+      try {
+        await pollUntil(
+          () =>
+            new Promise<string>((resolve) =>
+              setTimeout(() => {
+                settledLate = true;
+                resolve("192.168.1.10");
+              }, 40)
+            ),
+          pollOptions(controller.signal, 10)
+        );
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.be.instanceOf(PollTimeoutError);
+      // The poll gave up at the deadline rather than waiting for the check
+      expect(settledLate).to.be.false;
+    });
+
+    it("cancels while a check is pending, without waiting for it", async () => {
+      const controller = new AbortController();
+
+      const pending = pollUntil(
+        () => new Promise<string>(() => {}),
+        pollOptions(controller.signal, 10_000)
+      );
+      setTimeout(() => controller.abort(), 5);
+
+      let error: unknown;
+      try {
+        await pending;
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.be.instanceOf(CancelledError);
+    });
+
+    it("removes its abort listeners once it finishes", async () => {
+      const controller = new AbortController();
+      const { signal } = controller;
+      let listeners = 0;
+      const add = signal.addEventListener.bind(signal);
+      const remove = signal.removeEventListener.bind(signal);
+      signal.addEventListener = ((...args: Parameters<typeof add>) => {
+        listeners++;
+        add(...args);
+      }) as typeof signal.addEventListener;
+      signal.removeEventListener = ((...args: Parameters<typeof remove>) => {
+        listeners--;
+        remove(...args);
+      }) as typeof signal.removeEventListener;
+
+      let calls = 0;
+      await pollUntil(async () => {
+        calls++;
+        return calls < 3 ? null : "done";
+      }, pollOptions(signal));
+
+      expect(listeners).to.equal(0);
+    });
+
     it("propagates cancellation raised by the check itself", async () => {
       const controller = new AbortController();
 

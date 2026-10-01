@@ -77,13 +77,57 @@ export interface PollOptions {
 }
 
 /**
+ * Settle with `attempt`, unless `signal` aborts first (`CancelledError`) or
+ * `ms` milliseconds pass first (`PollTimeoutError`). The timer and the abort
+ * listener are removed however it ends.
+ */
+function raceAttempt<T>(
+  attempt: Promise<T>,
+  ms: number,
+  signal: AbortSignal,
+  timeoutMessage: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(new CancelledError());
+    };
+    const timer = setTimeout(
+      () => {
+        cleanup();
+        reject(new PollTimeoutError(timeoutMessage));
+      },
+      Math.max(ms, 0)
+    );
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    attempt.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      }
+    );
+  });
+}
+
+/**
  * Call `check` every `interval` milliseconds until it resolves to a value that
  * is neither `null` nor `undefined`, and return that value.
  *
  * Errors thrown by `check` mean "not ready yet" and are retried - what is being
  * polled for is usually unreachable when polling starts. Only cancellation and
  * the timeout end the loop early, and both throw, so a caller cannot mistake
- * either one for success.
+ * either one for success. Both also apply while a `check` is still pending: a
+ * check that hangs, or that only succeeds after the deadline, still ends in a
+ * `PollTimeoutError`.
  */
 export async function pollUntil<T>(
   check: () => Promise<T | null | undefined>,
@@ -95,14 +139,24 @@ export async function pollUntil<T>(
 
   for (;;) {
     try {
-      const result = await check();
-      // Cancelled while `check` was pending - a late result must not count
+      const result = await raceAttempt(
+        // `check` may throw synchronously; treat that like a rejection
+        Promise.resolve().then(check),
+        deadline - Date.now(),
+        signal,
+        timeoutMessage
+      );
+      // Cancelled or past the deadline as `check` settled - a late result
+      // must not count
       throwIfCancelled(signal);
+      if (Date.now() > deadline) {
+        throw new PollTimeoutError(timeoutMessage);
+      }
       if (result !== null && result !== undefined) {
         return result;
       }
     } catch (error) {
-      if (isCancelled(error)) {
+      if (isCancelled(error) || error instanceof PollTimeoutError) {
         throw error;
       }
       // Anything else is "not ready yet" - keep polling until the deadline.
