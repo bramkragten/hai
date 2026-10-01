@@ -2,6 +2,7 @@ import { expect, fixture, fixtureSync, html } from "@open-wc/testing";
 import "@home-assistant/webawesome/dist/components/radio-group/radio-group.js";
 import "../../../src/components/drive-card.js";
 import type { DriveCard } from "../../../src/components/drive-card.js";
+import { findByRole, fullA11ySnapshot } from "../helpers/a11y.js";
 
 describe("drive-card", () => {
   it("renders with drive name", async () => {
@@ -323,6 +324,15 @@ describe("drive-card", () => {
 
     const cards = (root: HTMLElement) =>
       Array.from(root.querySelectorAll<DriveCard>("drive-card"));
+
+    // See device-card: the group forwards aria-label to its shadow fieldset.
+    it("names the radiogroup from the group's aria-label", async () => {
+      await group();
+      const groups = findByRole(await fullA11ySnapshot(), "radiogroup");
+
+      expect(groups).to.have.length(1);
+      expect(groups[0]!.name).to.equal("Target drive");
+    });
 
     it("keeps a disabled drive out of the tab order", async () => {
       const root = await group();
