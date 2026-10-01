@@ -10,9 +10,8 @@ export class OptionCard extends LitElement {
     }
 
     :host(:focus-visible) .card {
-      border-color: var(--ha-primary-color, #03a9f4);
-      outline: 2px solid var(--ha-primary-color, #03a9f4);
-      outline-offset: 2px;
+      outline: var(--wa-focus-ring);
+      outline-offset: var(--wa-focus-ring-offset);
     }
 
     .card {
@@ -136,7 +135,7 @@ export class OptionCard extends LitElement {
 
   private _renderIcon() {
     if (this.image) {
-      return html`<img src=${this.image} alt=${this.title} />`;
+      return html`<img src=${this.image} alt="" />`;
     }
 
     // Use placeholder icons based on icon type
@@ -151,7 +150,7 @@ export class OptionCard extends LitElement {
 
     const iconSrc = iconMap[this.icon];
     if (iconSrc) {
-      return html`<img src=${iconSrc} alt=${this.title} />`;
+      return html`<img src=${iconSrc} alt="" />`;
     }
 
     return html`<div class="icon-placeholder"></div>`;
