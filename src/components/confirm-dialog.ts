@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import "@home-assistant/webawesome/dist/components/dialog/dialog.js";
 import "@home-assistant/webawesome/dist/components/button/button.js";
@@ -115,8 +115,9 @@ export class ConfirmDialog extends LitElement {
   @property({ type: String })
   driveModel = "";
 
+  /** Size in bytes; undefined when unknown. */
   @property({ type: Number })
-  driveSize = 0;
+  driveSize?: number;
 
   render() {
     return html`
@@ -159,8 +160,8 @@ export class ConfirmDialog extends LitElement {
   }
 
   private _renderDriveDetails() {
-    if (!this.drivePath && !this.driveModel && !this.driveSize) {
-      return "";
+    if (!this.drivePath && !this.driveModel && this.driveSize === undefined) {
+      return nothing;
     }
 
     return html`
@@ -170,19 +171,19 @@ export class ConfirmDialog extends LitElement {
               <dt class="detail-label">Device</dt>
               <dd class="detail-value path">${this.drivePath}</dd>
             `
-          : ""}
+          : nothing}
         ${this.driveModel
           ? html`
               <dt class="detail-label">Model</dt>
               <dd class="detail-value">${this.driveModel}</dd>
             `
-          : ""}
-        ${this.driveSize
+          : nothing}
+        ${this.driveSize !== undefined
           ? html`
               <dt class="detail-label">Size</dt>
               <dd class="detail-value">${formatBytes(this.driveSize)}</dd>
             `
-          : ""}
+          : nothing}
       </dl>
     `;
   }

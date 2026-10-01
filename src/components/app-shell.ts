@@ -116,7 +116,7 @@ export class AppShell extends LitElement {
         .driveModel=${[selections.driveVendor, selections.driveModel]
           .filter(Boolean)
           .join(" ")}
-        .driveSize=${selections.driveSize || 0}
+        .driveSize=${selections.driveSize}
         @dialog-cancel=${this._onDialogCancel}
         @dialog-confirm=${this._onDialogConfirm}
       ></confirm-dialog>
@@ -386,14 +386,7 @@ export class AppShell extends LitElement {
     this._currentView = "welcome";
   }
 
-  /**
-   * Clear the per-run error flags. They are what reveal Cancel and
-   * "Try again" on the otherwise chrome-less progress steps, so a flag left
-   * over from an earlier failure puts those controls on screen during the
-   * next run's live write. Cancel only resets the wizard — there is no way to
-   * stop the backend — so the user would be told the write had stopped while
-   * it was still running.
-   */
+  /** A stale error flag would show Cancel/"Try again" over the next live write. */
   private _resetErrorState() {
     this._flashError = false;
     this._utmInstallError = false;
@@ -487,16 +480,9 @@ export class AppShell extends LitElement {
   }
 
   /**
-   * Confirm the stored selection still points at the same physical device.
-   *
-   * The id that identifies the drive is also the path the backend writes to,
-   * and the OS reassigns those: unplugging the selected stick and plugging in
-   * another one can hand the new device the same path. Nothing re-checked
-   * that between picking a drive and erasing it, so a selection made minutes
-   * earlier could send the write to a disk the user never chose.
-   *
-   * On failure the wizard drops back to the drive step, which re-scans,
-   * clears the stale selection and explains why.
+   * Confirm the selected path still belongs to the same device; the OS can
+   * hand it to another one. On failure, go back to the drive step, which
+   * re-scans and explains why the selection was cleared.
    */
   private async _verifySelectedDrive(): Promise<boolean> {
     const selection = readDriveSelection(this._wizardState.selections);

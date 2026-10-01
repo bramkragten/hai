@@ -62,13 +62,15 @@ import {
 } from "./mock-data.js";
 
 /**
- * List available block devices (SD cards, USB drives, etc.)
+ * List the removable block devices (SD cards, USB drives, etc.) that can be
+ * installed to. Some platforms also enumerate internal disks; those are
+ * never a valid target, so they are dropped here.
  */
 export async function listBlockDevices(): Promise<BlockDevice[]> {
-  if (isBrowserOnly()) {
-    return MOCK_BLOCK_DEVICES;
-  }
-  return invoke<BlockDevice[]>("list_block_devices");
+  const devices = isBrowserOnly()
+    ? MOCK_BLOCK_DEVICES
+    : await invoke<BlockDevice[]>("list_block_devices");
+  return devices.filter((device) => device.removable);
 }
 
 /**

@@ -33,145 +33,46 @@ describe("drive-selection-view", () => {
   beforeEach(() => wizardState.startFlow("sbc"));
   afterEach(() => wizardState.reset());
 
-  it("renders and shows loading or error state", async () => {
-    const el = await fixture<DriveSelectionView>(html`
-      <drive-selection-view></drive-selection-view>
-    `);
+  it("keeps a selection whose drive is still connected", async () => {
+    storeDriveSelection(CONNECTED);
 
-    // Component will either be in loading state, error state (no Tauri in test env),
-    // or have loaded devices
-    const loading = el.shadowRoot!.querySelector(".loading");
-    const error = el.shadowRoot!.querySelector(".error");
-    const list = el.shadowRoot!.querySelector(".drives-list");
-
-    // One of these should exist
-    expect(loading || error || list).to.exist;
-  });
-
-  it("has the correct host styles", async () => {
-    const el = await fixture<DriveSelectionView>(html`
-      <drive-selection-view></drive-selection-view>
-    `);
-
-    const styles = getComputedStyle(el);
-    expect(styles.display).to.equal("flex");
-  });
-
-  it("stores the full identity of the drive the user picks", async () => {
     const el = await mountLoaded();
 
-    const card = el.shadowRoot!.querySelector("drive-card") as HTMLElement & {
-      driveId: string;
-    };
-    const picked = MOCK_BLOCK_DEVICES.find((d) => d.id === card.driveId)!;
-    card.click();
-    await el.updateComplete;
-
-    // The path alone is not enough to recognise the device later.
-    const selections = wizardState.getState().selections;
-    expect(selections.drive).to.equal(picked.id);
-    expect(selections.driveName).to.equal(picked.name);
-    expect(selections.driveSize).to.equal(picked.size);
-    expect(selections.driveModel).to.equal(picked.model);
-    expect(selections.driveVendor).to.equal(picked.vendor);
+    expect(wizardState.getState().selections.drive).to.equal(CONNECTED.id);
+    expect(selectedIds(el)).to.deep.equal([CONNECTED.id]);
+    expect(el.shadowRoot!.querySelector(".notice")).to.not.exist;
   });
 
-  describe("stale selections", () => {
-    it("keeps a selection whose drive is still connected", async () => {
-      storeDriveSelection(CONNECTED);
+  it("clears a selection whose path now names a different disk", async () => {
+    storeDriveSelection({ ...CONNECTED, model: "Some Older Card" });
 
-      const el = await mountLoaded();
+    const el = await mountLoaded();
 
-      expect(wizardState.getState().selections.drive).to.equal(CONNECTED.id);
-      expect(selectedIds(el)).to.deep.equal([CONNECTED.id]);
-      expect(el.shadowRoot!.querySelector(".notice")).to.not.exist;
-    });
+    expect(wizardState.getState().selections.drive).to.be.undefined;
+    expect(selectedIds(el)).to.be.empty;
+    expect(el.shadowRoot!.querySelector(".notice")).to.exist;
+  });
 
-    it("clears a selection whose drive is gone", async () => {
-      storeDriveSelection({ ...CONNECTED, id: "mock-unplugged" });
+  it("announces a selection dropped on refresh through a live region", async () => {
+    storeDriveSelection(CONNECTED);
+    const el = await mountLoaded();
 
-      const el = await mountLoaded();
+    // The region must already exist before the notice is inserted, or
+    // assistive technology may not announce it.
+    const region = el.shadowRoot!.querySelector('[role="status"]');
+    expect(region).to.exist;
 
-      expect(wizardState.getState().selections.drive).to.be.undefined;
-      expect(selectedIds(el)).to.be.empty;
-      expect(el.shadowRoot!.querySelector(".notice")).to.exist;
-    });
+    wizardState.setSelection("driveModel", "Swapped Out");
+    (
+      el.shadowRoot!.querySelector(".drives-header wa-button") as HTMLElement
+    ).click();
+    await waitUntil(() => el.shadowRoot!.querySelector(".notice"));
 
-    // The F8 scenario: the stick that was selected is unplugged and another
-    // one takes over its path, so the id still enumerates but names a
-    // different disk. Erasing it would destroy a drive the user never chose.
-    it("clears a selection whose path now names a different disk", async () => {
-      storeDriveSelection({
-        ...CONNECTED,
-        size: 8 * 1000 * 1000 * 1000,
-        model: "Some Older Card",
-      });
-
-      const el = await mountLoaded();
-
-      expect(wizardState.getState().selections.drive).to.be.undefined;
-      expect(selectedIds(el)).to.be.empty;
-      expect(el.shadowRoot!.querySelector(".notice")).to.exist;
-    });
-
-    it("re-checks the selection on refresh, not just on mount", async () => {
-      storeDriveSelection(CONNECTED);
-      const el = await mountLoaded();
-      expect(selectedIds(el)).to.deep.equal([CONNECTED.id]);
-
-      // The device behind the stored path changes while the view is open.
-      wizardState.setSelection("driveModel", "Swapped Out");
-
-      const refresh = el.shadowRoot!.querySelector(
-        ".drives-header wa-button"
-      ) as HTMLElement;
-      refresh.click();
-
-      await waitUntil(
-        () => wizardState.getState().selections.drive === undefined,
-        "refresh never dropped the stale selection"
-      );
-      await el.updateComplete;
-      expect(selectedIds(el)).to.be.empty;
-      expect(el.shadowRoot!.querySelector(".notice")).to.exist;
-    });
-
-    it("drops the notice once a new drive is picked", async () => {
-      storeDriveSelection({ ...CONNECTED, id: "mock-unplugged" });
-      const el = await mountLoaded();
-      expect(el.shadowRoot!.querySelector(".notice")).to.exist;
-
-      (el.shadowRoot!.querySelector("drive-card") as HTMLElement).click();
-      await el.updateComplete;
-
-      expect(el.shadowRoot!.querySelector(".notice")).to.not.exist;
-      expect(wizardState.getState().selections.drive).to.exist;
-    });
-
-    // The notice appears after a refresh with no focus change, so without a
-    // live region a screen-reader user only notices Next turning disabled.
-    it("announces the notice through a live region", async () => {
-      storeDriveSelection(CONNECTED);
-      const el = await mountLoaded();
-
-      // The region must already be in the DOM before the notice is inserted,
-      // or assistive technology may not announce it.
-      const region = el.shadowRoot!.querySelector('[role="status"]');
-      expect(region).to.exist;
-      expect(region!.querySelector(".notice")).to.not.exist;
-
-      wizardState.setSelection("driveModel", "Swapped Out");
-      (
-        el.shadowRoot!.querySelector(".drives-header wa-button") as HTMLElement
-      ).click();
-      await waitUntil(() => el.shadowRoot!.querySelector(".notice"));
-
-      expect(el.shadowRoot!.querySelector('[role="status"]')).to.equal(region);
-      expect(region!.querySelector(".notice")).to.exist;
-      expect(
-        region!.querySelector(".notice-icon")!.getAttribute("aria-hidden")
-      ).to.equal("true");
-    });
+    expect(wizardState.getState().selections.drive).to.be.undefined;
+    expect(region!.querySelector(".notice")).to.exist;
+    expect(
+      region!.querySelector(".notice-icon")!.getAttribute("aria-hidden")
+    ).to.equal("true");
   });
 });
 

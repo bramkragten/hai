@@ -9,13 +9,15 @@ import { wizardState, type WizardSelections } from "../state/wizard-state.js";
  * a different device once the original is unplugged. `BlockDevice` carries no
  * serial number, so identity is the id plus every other field that
  * distinguishes two devices that could end up sharing it.
+ *
+ * `undefined` means the value is unknown.
  */
 export interface DriveIdentity {
   id: string;
   name: string;
-  size: number;
-  model: string;
-  vendor: string;
+  size?: number;
+  model?: string;
+  vendor?: string;
 }
 
 export function driveIdentity(drive: BlockDevice): DriveIdentity {
@@ -23,8 +25,9 @@ export function driveIdentity(drive: BlockDevice): DriveIdentity {
     id: drive.id,
     name: drive.name,
     size: drive.size,
-    model: drive.model || "",
-    vendor: drive.vendor || "",
+    // The backend sends null for a value the device does not report.
+    model: drive.model ?? undefined,
+    vendor: drive.vendor ?? undefined,
   };
 }
 
@@ -33,40 +36,25 @@ export function driveIdentity(drive: BlockDevice): DriveIdentity {
  *
  * `name` is deliberately excluded: it is a display label some enumerators
  * build from the mount state, so it can change while the device does not.
+ * An unknown size never matches, since every enumerated device has one.
  */
 export function isSameDrive(a: DriveIdentity, b: DriveIdentity): boolean {
   return (
     a.id === b.id &&
+    a.size !== undefined &&
     a.size === b.size &&
     a.model === b.model &&
     a.vendor === b.vendor
   );
 }
 
-/**
- * The drives the user may pick as an install target.
- *
- * Some enumerators (Windows in particular) also report internal, non-system
- * disks with `removable: false`. Those are never offered, so they must never
- * satisfy a re-check of the selection either.
- */
-export function selectableDrives(drives: BlockDevice[]): BlockDevice[] {
-  return drives.filter((drive) => drive.removable);
-}
-
-/**
- * The selectable drive in `drives` that is still the one described by
- * `identity`. Non-selectable drives are ignored, so a non-removable disk that
- * reuses the path and happens to match on size, model and vendor cannot pass.
- */
+/** The drive in `drives` that is still the one described by `identity`. */
 export function findDrive(
   drives: BlockDevice[],
   identity: DriveIdentity
 ): BlockDevice | null {
   return (
-    selectableDrives(drives).find((drive) =>
-      isSameDrive(driveIdentity(drive), identity)
-    ) ?? null
+    drives.find((drive) => isSameDrive(driveIdentity(drive), identity)) ?? null
   );
 }
 
@@ -80,9 +68,9 @@ export function readDriveSelection(
   return {
     id: selections.drive,
     name: selections.driveName || "",
-    size: selections.driveSize || 0,
-    model: selections.driveModel || "",
-    vendor: selections.driveVendor || "",
+    size: selections.driveSize,
+    model: selections.driveModel,
+    vendor: selections.driveVendor,
   };
 }
 

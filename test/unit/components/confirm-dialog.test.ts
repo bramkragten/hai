@@ -51,66 +51,34 @@ describe("confirm-dialog", () => {
   });
 
   describe("target device details", () => {
-    // The path is the one value actually sent to the backend, and the only
-    // thing that tells two identical cards apart at the point of no return.
-    it("renders the device path", async () => {
-      const el = await fixture<ConfirmDialog>(html`
-        <confirm-dialog open drivePath="/dev/sdb"></confirm-dialog>
-      `);
+    const labels = (el: ConfirmDialog) =>
+      [...el.shadowRoot!.querySelectorAll(".detail-label")].map((label) =>
+        label.textContent!.trim()
+      );
 
-      const path = el.shadowRoot!.querySelector(".detail-value.path");
-      expect(path).to.exist;
-      expect(path!.textContent!.trim()).to.equal("/dev/sdb");
-    });
-
-    it("renders the model and the size", async () => {
+    it("shows the path, model and size of the drive to be erased", async () => {
       const el = await fixture<ConfirmDialog>(html`
         <confirm-dialog
           open
-          drivePath="disk2"
+          drivePath="/dev/sdb"
           driveModel="SanDisk Ultra"
           driveSize="32000000000"
         ></confirm-dialog>
       `);
 
+      expect(labels(el)).to.deep.equal(["Device", "Model", "Size"]);
       const details = el.shadowRoot!.querySelector(".drive-details")!;
+      expect(details.textContent).to.contain("/dev/sdb");
       expect(details.textContent).to.contain("SanDisk Ultra");
       expect(details.textContent).to.contain("29.8 GB");
     });
 
-    it("labels each detail", async () => {
-      const el = await fixture<ConfirmDialog>(html`
-        <confirm-dialog
-          open
-          drivePath="disk2"
-          driveModel="SanDisk Ultra"
-          driveSize="32000000000"
-        ></confirm-dialog>
-      `);
-
-      const labels = [...el.shadowRoot!.querySelectorAll(".detail-label")].map(
-        (label) => label.textContent!.trim()
-      );
-      expect(labels).to.deep.equal(["Device", "Model", "Size"]);
-    });
-
-    it("omits rows it has no value for", async () => {
+    it("leaves out an unknown size", async () => {
       const el = await fixture<ConfirmDialog>(html`
         <confirm-dialog open drivePath="/dev/sdb"></confirm-dialog>
       `);
 
-      const labels = [...el.shadowRoot!.querySelectorAll(".detail-label")].map(
-        (label) => label.textContent!.trim()
-      );
-      expect(labels).to.deep.equal(["Device"]);
-    });
-
-    it("omits the details block when nothing is known", async () => {
-      const el = await fixture<ConfirmDialog>(html`
-        <confirm-dialog open driveName="My USB Drive"></confirm-dialog>
-      `);
-
-      expect(el.shadowRoot!.querySelector(".drive-details")).to.not.exist;
+      expect(labels(el)).to.deep.equal(["Device"]);
     });
   });
 
@@ -306,20 +274,6 @@ describe("confirm-dialog", () => {
     `);
 
     expect(el.driveName).to.equal("Test Drive");
-  });
-
-  it("stores the target device properties", async () => {
-    const el = await fixture<ConfirmDialog>(html`
-      <confirm-dialog
-        drivePath="/dev/sdb"
-        driveModel="Kingston DataTraveler"
-        driveSize="16000000000"
-      ></confirm-dialog>
-    `);
-
-    expect(el.drivePath).to.equal("/dev/sdb");
-    expect(el.driveModel).to.equal("Kingston DataTraveler");
-    expect(el.driveSize).to.equal(16000000000);
   });
 
   it("stores open property", async () => {

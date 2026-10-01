@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { wizardState, type WizardState } from "../../state/wizard-state.js";
 import type { HaosConfig } from "../../api/types.js";
@@ -191,7 +191,7 @@ export class ConfirmationView extends LitElement {
     const deviceName = (selections.deviceName as string) || "Unknown device";
     const deviceImage = selections.deviceImage as string | undefined;
     const driveName = selections.driveName || "Unknown drive";
-    const driveSize = selections.driveSize || 0;
+    const driveSize = selections.driveSize;
     // The path is what actually gets written to, so show it alongside the
     // friendly name: two identical cards are otherwise indistinguishable.
     const drivePath = selections.drive || "";
@@ -240,11 +240,11 @@ export class ConfirmationView extends LitElement {
             <p class="summary-detail">
               ${this._formatSize(driveSize)}${driveModel
                 ? ` · ${driveModel}`
-                : ""}
+                : nothing}
             </p>
             ${drivePath
               ? html`<p class="summary-detail drive-path">${drivePath}</p>`
-              : ""}
+              : nothing}
           </div>
         </div>
 
@@ -267,8 +267,8 @@ export class ConfirmationView extends LitElement {
     `;
   }
 
-  private _formatSize(bytes: number): string {
-    if (bytes === 0) return "Unknown size";
+  private _formatSize(bytes: number | undefined): string {
+    if (!bytes) return "Unknown size";
     const gb = bytes / (1024 * 1024 * 1024);
     if (gb >= 1000) {
       return `${(gb / 1024).toFixed(1)} TB`;

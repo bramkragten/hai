@@ -115,11 +115,12 @@ export interface FlashRequest {
    * different disk that took over the path in the meantime is refused.
    */
   expected_device: {
-    size: number;
-    /** "" when the device reported none */
-    model: string;
-    /** "" when the device reported none */
-    vendor: string;
+    /** Omitted when unknown */
+    size?: number;
+    /** Omitted when unknown */
+    model?: string;
+    /** Omitted when unknown */
+    vendor?: string;
   };
 }
 

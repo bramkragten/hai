@@ -1,7 +1,27 @@
 import { expect } from "@open-wc/testing";
-import { formatBytes } from "../../../src/api/commands.js";
+import { formatBytes, listBlockDevices } from "../../../src/api/commands.js";
+import { MOCK_BLOCK_DEVICES } from "../../../src/api/mock-data.js";
 
 describe("api/commands", () => {
+  describe("listBlockDevices", () => {
+    // Some platforms also enumerate internal disks; they must never be
+    // offered, nor accepted when the selection is re-checked.
+    it("leaves out non-removable disks", async () => {
+      MOCK_BLOCK_DEVICES.push({
+        ...MOCK_BLOCK_DEVICES[0],
+        id: "internal-disk",
+        removable: false,
+      });
+      try {
+        const ids = (await listBlockDevices()).map((device) => device.id);
+        expect(ids).to.not.include("internal-disk");
+        expect(ids).to.include(MOCK_BLOCK_DEVICES[0].id);
+      } finally {
+        MOCK_BLOCK_DEVICES.pop();
+      }
+    });
+  });
+
   describe("formatBytes", () => {
     it("formats 0 bytes", () => {
       expect(formatBytes(0)).to.equal("0 B");
