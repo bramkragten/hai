@@ -42,6 +42,22 @@ pub struct FlashRequest {
     pub device_id: String,
     pub board: String,
     pub verify: bool,
+    /// What the device at `device_id` looked like when the user picked it.
+    pub expected_device: ExpectedDevice,
+}
+
+/// Identity of the drive the user selected, checked against the enumeration
+/// taken right before writing.
+///
+/// `device_id` is a path the OS reassigns, and the image download that comes
+/// before the write can take minutes, so a different disk can take over the
+/// path in that window. `BlockDevice` has no serial number, so identity is
+/// every other field that tells two devices sharing a path apart.
+#[derive(serde::Deserialize)]
+pub struct ExpectedDevice {
+    pub size: u64,
+    pub model: String,
+    pub vendor: String,
 }
 
 /// Result of a flash operation
@@ -98,10 +114,12 @@ pub async fn list_block_devices() -> Result<Vec<BlockDevice>, String> {
 ///
 /// `write_image` writes to whatever target it is given, so this lookup is the
 /// safety gate: the device must be one that enumeration reported, and it must
-/// be removable
+/// be removable, and it must still be the device the user selected rather than
+/// another one that has since been assigned the same path.
 fn find_flash_target<'a>(
     devices: &'a [BlockDevice],
     device_id: &str,
+    expected: &ExpectedDevice,
 ) -> Result<&'a BlockDevice, String> {
     let device = devices.iter().find(|d| d.id == device_id).ok_or_else(|| {
         format!(
@@ -113,6 +131,17 @@ fn find_flash_target<'a>(
     if !device.removable {
         return Err(format!(
             "{} is not a removable drive and cannot be overwritten",
+            device_id
+        ));
+    }
+
+    if device.size != expected.size
+        || device.model.as_deref().unwrap_or("") != expected.model
+        || device.vendor.as_deref().unwrap_or("") != expected.vendor
+    {
+        return Err(format!(
+            "The drive at {} is no longer the one you selected. It may have been \
+             swapped for another device; please select your drive again.",
             device_id
         ));
     }
@@ -192,7 +221,7 @@ pub async fn flash_image(
         .await
         .map_err(|e| format!("Failed to list devices: {}", e))?;
 
-    let device = find_flash_target(&device_list, &request.device_id)?;
+    let device = find_flash_target(&device_list, &request.device_id, &request.expected_device)?;
 
     if image_size > device.size {
         return Err(format!(
@@ -1032,13 +1061,34 @@ mod tests {
         let json = r#"{
             "device_id": "/dev/sda",
             "board": "rpi5-64",
-            "verify": true
+            "verify": true,
+            "expected_device": {
+                "size": 32000000000,
+                "model": "Ultra",
+                "vendor": "SanDisk"
+            }
         }"#;
 
         let request: FlashRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.device_id, "/dev/sda");
         assert_eq!(request.board, "rpi5-64");
         assert!(request.verify);
+        assert_eq!(request.expected_device.size, 32_000_000_000);
+        assert_eq!(request.expected_device.model, "Ultra");
+        assert_eq!(request.expected_device.vendor, "SanDisk");
+    }
+
+    #[test]
+    fn test_flash_request_requires_expected_device() {
+        // Without the selected identity the backend cannot tell the chosen
+        // drive from another that took over its path, so refuse the request.
+        let json = r#"{
+            "device_id": "/dev/sda",
+            "board": "rpi5-64",
+            "verify": true
+        }"#;
+
+        assert!(serde_json::from_str::<FlashRequest>(json).is_err());
     }
 
     #[test]
@@ -1631,7 +1681,8 @@ mod tests {
         let json = r#"{
             "device_id": "/dev/sdb",
             "board": "rpi4-64",
-            "verify": false
+            "verify": false,
+            "expected_device": { "size": 1, "model": "", "vendor": "" }
         }"#;
 
         let request: FlashRequest = serde_json::from_str(json).unwrap();
@@ -1932,6 +1983,7 @@ mod tests {
             device_id: "/dev/sdc".to_string(),
             board: "generic-aarch64".to_string(),
             verify: true,
+            expected_device: expected(),
         };
         assert_eq!(request.board, "generic-aarch64");
     }
@@ -2089,6 +2141,7 @@ mod tests {
             device_id: "/dev/sda".to_string(),
             board: "rpi5-64".to_string(),
             verify: true,
+            expected_device: expected(),
         };
         assert!(request.verify);
     }
@@ -2099,6 +2152,7 @@ mod tests {
             device_id: "/dev/sda".to_string(),
             board: "rpi5-64".to_string(),
             verify: false,
+            expected_device: expected(),
         };
         assert!(!request.verify);
     }
@@ -2668,36 +2722,75 @@ mod tests {
             size: 32_000_000_000,
             device_type: hai_core::DeviceType::UsbDrive,
             removable,
-            model: None,
-            vendor: None,
+            model: Some("Ultra".to_string()),
+            vendor: Some("SanDisk".to_string()),
+        }
+    }
+
+    /// The identity the frontend sends for a device built by `flash_target`.
+    fn expected() -> ExpectedDevice {
+        ExpectedDevice {
+            size: 32_000_000_000,
+            model: "Ultra".to_string(),
+            vendor: "SanDisk".to_string(),
         }
     }
 
     #[test]
     fn test_find_flash_target_accepts_removable_device() {
         let devices = [flash_target("/dev/sdb", true)];
-        let device = find_flash_target(&devices, "/dev/sdb").unwrap();
+        let device = find_flash_target(&devices, "/dev/sdb", &expected()).unwrap();
         assert_eq!(device.id, "/dev/sdb");
     }
 
     #[test]
     fn test_find_flash_target_rejects_unknown_device() {
         let devices = [flash_target("/dev/sdb", true)];
-        let err = find_flash_target(&devices, "/dev/sdz").unwrap_err();
+        let err = find_flash_target(&devices, "/dev/sdz", &expected()).unwrap_err();
         assert!(err.contains("not found"), "{err}");
     }
 
     #[test]
     fn test_find_flash_target_rejects_non_removable_device() {
         let devices = [flash_target("\\\\.\\PhysicalDrive1", false)];
-        let err = find_flash_target(&devices, "\\\\.\\PhysicalDrive1").unwrap_err();
+        let err = find_flash_target(&devices, "\\\\.\\PhysicalDrive1", &expected()).unwrap_err();
         assert!(err.contains("not a removable drive"), "{err}");
     }
 
     #[test]
     fn test_find_flash_target_rejects_empty_device_id() {
         let devices = [flash_target("/dev/sdb", true)];
-        let err = find_flash_target(&devices, "").unwrap_err();
+        let err = find_flash_target(&devices, "", &expected()).unwrap_err();
         assert!(err.contains("not found"), "{err}");
+    }
+
+    #[test]
+    fn test_find_flash_target_rejects_different_device_at_same_path() {
+        // Each field on its own is enough to tell a replacement apart.
+        let mutations: [fn(&mut BlockDevice); 3] = [
+            |d| d.size = 64_000_000_000,
+            |d| d.model = Some("Extreme".to_string()),
+            |d| d.vendor = Some("Kingston".to_string()),
+        ];
+        for mutate in mutations {
+            let mut device = flash_target("/dev/sdb", true);
+            mutate(&mut device);
+            let err = find_flash_target(&[device], "/dev/sdb", &expected()).unwrap_err();
+            assert!(err.contains("no longer the one you selected"), "{err}");
+        }
+    }
+
+    #[test]
+    fn test_find_flash_target_treats_missing_model_and_vendor_as_empty() {
+        // The frontend sends "" for a model/vendor enumeration did not report.
+        let mut device = flash_target("/dev/sdb", true);
+        device.model = None;
+        device.vendor = None;
+        let expected = ExpectedDevice {
+            size: 32_000_000_000,
+            model: String::new(),
+            vendor: String::new(),
+        };
+        assert!(find_flash_target(&[device], "/dev/sdb", &expected).is_ok());
     }
 }

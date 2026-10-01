@@ -147,6 +147,31 @@ describe("drive-selection-view", () => {
       expect(el.shadowRoot!.querySelector(".notice")).to.not.exist;
       expect(wizardState.getState().selections.drive).to.exist;
     });
+
+    // The notice appears after a refresh with no focus change, so without a
+    // live region a screen-reader user only notices Next turning disabled.
+    it("announces the notice through a live region", async () => {
+      storeDriveSelection(CONNECTED);
+      const el = await mountLoaded();
+
+      // The region must already be in the DOM before the notice is inserted,
+      // or assistive technology may not announce it.
+      const region = el.shadowRoot!.querySelector('[role="status"]');
+      expect(region).to.exist;
+      expect(region!.querySelector(".notice")).to.not.exist;
+
+      wizardState.setSelection("driveModel", "Swapped Out");
+      (
+        el.shadowRoot!.querySelector(".drives-header wa-button") as HTMLElement
+      ).click();
+      await waitUntil(() => el.shadowRoot!.querySelector(".notice"));
+
+      expect(el.shadowRoot!.querySelector('[role="status"]')).to.equal(region);
+      expect(region!.querySelector(".notice")).to.exist;
+      expect(
+        region!.querySelector(".notice-icon")!.getAttribute("aria-hidden")
+      ).to.equal("true");
+    });
   });
 });
 

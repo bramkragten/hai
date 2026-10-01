@@ -7,6 +7,7 @@ import {
   findDrive,
   isSameDrive,
   readDriveSelection,
+  selectableDrives,
   storeDriveSelection,
 } from "../../../src/utils/drive-selection.js";
 
@@ -129,6 +130,27 @@ describe("drive-selection", () => {
 
     it("returns null for an empty device list", () => {
       expect(findDrive([], driveIdentity(makeDrive()))).to.be.null;
+    });
+
+    // Windows also enumerates internal, non-system disks. The picker never
+    // offers them, so a re-check must never accept one either — even one that
+    // reuses the path and matches on every identifying field.
+    it("ignores a non-removable disk that otherwise matches", () => {
+      const selected = makeDrive({ id: "\\\\.\\PhysicalDrive1" });
+      const internal = { ...selected, removable: false };
+
+      expect(findDrive([internal], driveIdentity(selected))).to.be.null;
+    });
+  });
+
+  describe("selectableDrives", () => {
+    it("keeps only removable drives", () => {
+      const removable = makeDrive({ id: "/dev/sdb" });
+      const internal = makeDrive({ id: "/dev/sdc", removable: false });
+
+      expect(selectableDrives([removable, internal])).to.deep.equal([
+        removable,
+      ]);
     });
   });
 

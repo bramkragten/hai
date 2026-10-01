@@ -43,13 +43,30 @@ export function isSameDrive(a: DriveIdentity, b: DriveIdentity): boolean {
   );
 }
 
-/** The drive in `drives` that is still the one described by `identity`. */
+/**
+ * The drives the user may pick as an install target.
+ *
+ * Some enumerators (Windows in particular) also report internal, non-system
+ * disks with `removable: false`. Those are never offered, so they must never
+ * satisfy a re-check of the selection either.
+ */
+export function selectableDrives(drives: BlockDevice[]): BlockDevice[] {
+  return drives.filter((drive) => drive.removable);
+}
+
+/**
+ * The selectable drive in `drives` that is still the one described by
+ * `identity`. Non-selectable drives are ignored, so a non-removable disk that
+ * reuses the path and happens to match on size, model and vendor cannot pass.
+ */
 export function findDrive(
   drives: BlockDevice[],
   identity: DriveIdentity
 ): BlockDevice | null {
   return (
-    drives.find((drive) => isSameDrive(driveIdentity(drive), identity)) ?? null
+    selectableDrives(drives).find((drive) =>
+      isSameDrive(driveIdentity(drive), identity)
+    ) ?? null
   );
 }
 

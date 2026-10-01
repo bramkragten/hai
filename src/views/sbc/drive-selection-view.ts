@@ -317,18 +317,23 @@ export class DriveSelectionView extends LitElement {
         </p>
       </div>
 
-      ${this._selectionLost
-        ? html`
-            <div class="notice">
-              <span class="notice-icon">🔌</span>
-              <p class="notice-text">
-                The drive you selected is no longer available, so the selection
-                was cleared. Devices can reappear under the same name as a
-                different drive, so please pick your drive again.
-              </p>
-            </div>
-          `
-        : ""}
+      <!-- The live region stays in the DOM so that inserting the notice into
+           it is announced; a region added together with its content often
+           is not. -->
+      <div class="notice-region" role="status">
+        ${this._selectionLost
+          ? html`
+              <div class="notice">
+                <span class="notice-icon" aria-hidden="true">🔌</span>
+                <p class="notice-text">
+                  The drive you selected is no longer available, so the
+                  selection was cleared. Devices can reappear under the same
+                  name as a different drive, so please pick your drive again.
+                </p>
+              </div>
+            `
+          : ""}
+      </div>
       ${this._renderContent()}
     `;
   }
