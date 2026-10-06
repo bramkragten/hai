@@ -378,9 +378,6 @@ export class ProxmoxConfigureView extends LitElement {
       );
       if (!nodeStillOnline) {
         this._selectedNode = this._nodes[0]?.name ?? "";
-        // The restored storage belonged to the old node; keeping it would
-        // leave an unvalidated target if the new node's lookup fails
-        this._selectedStorage = "";
       }
 
       if (this._selectedNode) {
@@ -438,6 +435,12 @@ export class ProxmoxConfigureView extends LitElement {
       this._saveSelections();
     } catch (error) {
       if (isStale()) return;
+      // Nothing this node offers could be checked, so neither a restored
+      // storage nor one from a previous node may stay selected: an empty one
+      // keeps the step from continuing
+      this._storages = [];
+      this._selectedStorage = "";
+      this._saveSelections();
       // Show storage error to user
       this._error =
         typeof error === "string"

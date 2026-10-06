@@ -242,4 +242,35 @@ describe("proxmox-configure-view", () => {
     // An empty storage keeps the step from continuing to an unchecked target
     expect(selections.proxmoxStorage).to.equal("");
   });
+
+  it("drops the restored storage when the lookup for a still-online node fails", async () => {
+    wizardState.setSelection("proxmoxNode", "pve");
+    wizardState.setSelection("proxmoxStorage", "local-lvm");
+    mockTauriIpc((cmd) => {
+      switch (cmd) {
+        case "proxmox_list_nodes":
+          return [{ name: "pve", status: "online" }];
+        case "proxmox_get_next_vm_id":
+          return 100;
+        case "proxmox_list_storage":
+          throw "storage unavailable";
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    // The storage dropdown never renders when its lookup fails, so wait for
+    // the error instead of using mount()
+    const el = await fixture<ProxmoxConfigureView>(html`
+      <proxmox-configure-view></proxmox-configure-view>
+    `);
+    await waitUntil(
+      () => el.shadowRoot!.textContent!.includes("storage unavailable"),
+      "the storage lookup never failed"
+    );
+
+    const selections = wizardState.getState().selections;
+    expect(selections.proxmoxNode).to.equal("pve");
+    // An empty storage keeps the step from continuing to an unchecked target
+    expect(selections.proxmoxStorage).to.equal("");
+  });
 });
