@@ -211,4 +211,35 @@ describe("proxmox-configure-view", () => {
     expect(selections.proxmoxNode).to.equal("pve");
     expect(selections.proxmoxStorage).to.equal("pve-storage");
   });
+
+  it("drops the restored storage when its node is gone and the new node's lookup fails", async () => {
+    wizardState.setSelection("proxmoxNode", "retired-node");
+    wizardState.setSelection("proxmoxStorage", "retired-storage");
+    mockTauriIpc((cmd) => {
+      switch (cmd) {
+        case "proxmox_list_nodes":
+          return [{ name: "pve", status: "online" }];
+        case "proxmox_get_next_vm_id":
+          return 100;
+        case "proxmox_list_storage":
+          throw "storage unavailable";
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    // The storage dropdown never renders when its lookup fails, so wait for
+    // the save instead of using mount()
+    await fixture<ProxmoxConfigureView>(html`
+      <proxmox-configure-view></proxmox-configure-view>
+    `);
+    await waitUntil(
+      () => wizardState.getState().selections.proxmoxNode !== "retired-node",
+      "the view never replaced the retired node"
+    );
+
+    const selections = wizardState.getState().selections;
+    expect(selections.proxmoxNode).to.equal("pve");
+    // An empty storage keeps the step from continuing to an unchecked target
+    expect(selections.proxmoxStorage).to.equal("");
+  });
 });

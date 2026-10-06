@@ -161,4 +161,33 @@ describe("utm-progress-view", () => {
     expect(calls.filter((c) => c === "create_utm_vm")).to.have.length(1);
     expect(resizeAttempts).to.equal(2);
   });
+
+  it("asks the VM for its address again on a retry", async () => {
+    // A previous attempt found the VM at an address it no longer has
+    wizardState.setSelection("utmImagePath", "/tmp/haos.qcow2");
+    wizardState.setSelection("vmId", "existing-vm");
+    wizardState.setSelection("utmDiskResized", true);
+    wizardState.setSelection("ipAddress", "192.168.1.50");
+
+    const checkedHosts: unknown[] = [];
+    mockTauriIpc((cmd, args) => {
+      switch (cmd) {
+        case "get_utm_vm_status":
+          return { status: "started", ip_address: "192.168.1.100" };
+        case "check_ha_ready":
+        case "check_ha_updated":
+          checkedHosts.push((args as { ipAddress: string }).ipAddress);
+          return true;
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    const el = mount();
+    await oneEvent(el, "install-complete");
+
+    expect(wizardState.getState().selections.ipAddress).to.equal(
+      "192.168.1.100"
+    );
+    expect(checkedHosts).to.not.include("192.168.1.50");
+  });
 });

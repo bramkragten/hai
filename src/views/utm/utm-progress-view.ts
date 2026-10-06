@@ -487,15 +487,16 @@ export class UtmProgressView extends LitElement {
       await this._ensureVmStarted(vmId, signal);
       throwIfCancelled(signal);
 
-      // Wait for the VM to get an IP address
+      // Wait for the VM to get an IP address. Asked again on a retry rather
+      // than reusing the last one: a restarted VM can get a new DHCP lease.
       this._startStage("waiting");
-      const ipAddress =
-        selections.ipAddress ?? (await this._waitForVmIp(vmId, signal));
+      const ipAddress = await this._waitForVmIp(vmId, signal);
       throwIfCancelled(signal);
+      // Cleared when none was found, so the success view does not link to an
+      // address from an earlier attempt
+      wizardState.setSelection("ipAddress", ipAddress ?? undefined);
 
       if (ipAddress) {
-        wizardState.setSelection("ipAddress", ipAddress);
-
         // Wait for the Home Assistant webserver to be ready
         this._startStage("ready");
         await this._waitForHaReady(ipAddress, signal);

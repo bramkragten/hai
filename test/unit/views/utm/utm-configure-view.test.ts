@@ -120,4 +120,29 @@ describe("utm-configure-view", () => {
 
     expect(wizardState.getState().selections.cpuCores).to.equal(4);
   });
+
+  it("shows a restored core count above 8 once the system lookup allows it", async () => {
+    wizardState.setSelection("cpuCores", 10);
+    const systemInfo = deferred<{ cpu_cores: number; memory_mb: number }>();
+    mockTauriIpc((cmd) => {
+      if (cmd === "get_system_info") return systemInfo.promise;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    // First render without system info, when the slider tops out at 8
+    const el = await fixture<UtmConfigureView>(html`
+      <utm-configure-view></utm-configure-view>
+    `);
+    systemInfo.resolve({ cpu_cores: 12, memory_mb: 32768 });
+    // cpuCores is already set, so wait on the lookup itself instead
+    await settle();
+    await el.updateComplete;
+
+    const slider = el.shadowRoot!.querySelector(
+      'input[type="range"]'
+    ) as HTMLInputElement;
+    expect(wizardState.getState().selections.cpuCores).to.equal(10);
+    expect(el.shadowRoot!.textContent).to.contain("10 cores");
+    expect(slider.value).to.equal("10");
+  });
 });

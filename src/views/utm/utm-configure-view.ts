@@ -1,5 +1,6 @@
 import { LitElement, html, css } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
 import { wizardState } from "../../state/wizard-state.js";
 import { getSystemInfo } from "../../api/commands.js";
 import type { SystemInfo } from "../../api/types.js";
@@ -476,7 +477,12 @@ export class UtmConfigureView extends LitElement {
                 min=${coreOptions[0]}
                 max=${coreOptions[coreOptions.length - 1]}
                 step="2"
-                .value=${String(this._cpuCores)}
+                .value=${
+                  // live(): the browser clamps the value while the system
+                  // lookup is pending and the max is still 8, so a restored
+                  // count above that must be re-applied once the max grows
+                  live(String(this._cpuCores))
+                }
                 @input=${this._onCoresChange}
               />
               ${this._renderTicks(coreOptions.length)}

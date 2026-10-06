@@ -378,6 +378,9 @@ export class ProxmoxConfigureView extends LitElement {
       );
       if (!nodeStillOnline) {
         this._selectedNode = this._nodes[0]?.name ?? "";
+        // The restored storage belonged to the old node; keeping it would
+        // leave an unvalidated target if the new node's lookup fails
+        this._selectedStorage = "";
       }
 
       if (this._selectedNode) {
