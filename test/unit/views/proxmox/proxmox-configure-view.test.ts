@@ -10,6 +10,7 @@ import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/proxmox/proxmox-configure-view.js";
 import type { ProxmoxConfigureView } from "../../../../src/views/proxmox/proxmox-configure-view.js";
 import {
+  type Deferred,
   deferred,
   mockTauriIpc,
   restoreTauriIpc,
@@ -150,5 +151,64 @@ describe("proxmox-configure-view", () => {
     expect(selections.proxmoxNode).to.be.undefined;
     expect(selections.proxmoxStorage).to.be.undefined;
     expect(selections.proxmoxVmId).to.be.undefined;
+  });
+
+  it("ignores a storage lookup for a node that is no longer selected", async () => {
+    const storageFor = (node: string): ProxmoxStorage[] => [
+      {
+        name: `${node}-storage`,
+        storage_type: "dir",
+        content: ["images"],
+        available: 100,
+        total: 100,
+        active: true,
+      },
+    ];
+    // After the first visit's lookup, hold each node's storage lookup open
+    const pending = new Map<string, Deferred<ProxmoxStorage[]>>();
+    let firstLookup = true;
+    mockTauriIpc((cmd, args) => {
+      switch (cmd) {
+        case "proxmox_list_nodes":
+          return [
+            { name: "pve", status: "online" },
+            { name: "pve2", status: "online" },
+          ];
+        case "proxmox_get_next_vm_id":
+          return 100;
+        case "proxmox_list_storage": {
+          const { node } = args as { node: string };
+          if (firstLookup) {
+            firstLookup = false;
+            return storageFor(node);
+          }
+          const lookup = deferred<ProxmoxStorage[]>();
+          pending.set(node, lookup);
+          return lookup.promise;
+        }
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    const el = await mount();
+    const nodeSelect = el.shadowRoot!.querySelector(
+      "select.select-dropdown"
+    ) as HTMLSelectElement;
+    const pickNode = (node: string) => {
+      nodeSelect.value = node;
+      nodeSelect.dispatchEvent(new Event("change"));
+    };
+
+    // Switch to pve2 and straight back, then have pve2's lookup finish last
+    pickNode("pve2");
+    pickNode("pve");
+    pending.get("pve")!.resolve(storageFor("pve"));
+    await settle();
+    pending.get("pve2")!.resolve(storageFor("pve2"));
+    await settle();
+
+    const selections = wizardState.getState().selections;
+    expect(selections.proxmoxNode).to.equal("pve");
+    expect(selections.proxmoxStorage).to.equal("pve-storage");
   });
 });

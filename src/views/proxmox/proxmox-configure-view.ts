@@ -407,11 +407,16 @@ export class ProxmoxConfigureView extends LitElement {
 
     if (!session) return;
 
+    const node = this._selectedNode;
+    // Switching nodes quickly can have lookups finish out of order; only the
+    // one for the node that is selected now may update the storage
+    const isStale = () => !this.isConnected || node !== this._selectedNode;
+
     this._loadingStorage = true;
     try {
-      const storages = await proxmoxListStorage(session, this._selectedNode);
+      const storages = await proxmoxListStorage(session, node);
 
-      if (!this.isConnected) return;
+      if (isStale()) return;
 
       // Filter to only show storage that supports VM images
       this._storages = storages.filter(
@@ -429,6 +434,7 @@ export class ProxmoxConfigureView extends LitElement {
 
       this._saveSelections();
     } catch (error) {
+      if (isStale()) return;
       // Show storage error to user
       this._error =
         typeof error === "string"
@@ -437,7 +443,8 @@ export class ProxmoxConfigureView extends LitElement {
             ? error.message
             : "Failed to load storage";
     } finally {
-      this._loadingStorage = false;
+      // A newer lookup is still running and owns the loading state
+      if (node === this._selectedNode) this._loadingStorage = false;
     }
   }
 
