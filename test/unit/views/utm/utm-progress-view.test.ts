@@ -57,9 +57,21 @@ describe("utm-progress-view", () => {
 
   it("does not touch the wizard or advance it after being detached", async () => {
     // Seed the state a completed attempt would leave behind, so the pipeline
-    // skips straight to the polling stages and would finish almost at once
+    // skips straight to the polling stages, and answer every check at once:
+    // without cancellation it would finish well within the wait below
     wizardState.setSelection("utmImagePath", "/tmp/haos.qcow2");
     wizardState.setSelection("vmId", "existing-vm");
+    wizardState.setSelection("utmDiskResized", true);
+    mockTauriIpc((cmd) => {
+      switch (cmd) {
+        case "get_utm_vm_status":
+          return { status: "started", ip_address: "192.168.1.100" };
+        case "check_ha_ready":
+        case "check_ha_updated":
+          return true;
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
 
     const el = mount();
     let completed = false;

@@ -84,6 +84,11 @@ describe("proxmox-configure-view", () => {
     expect(selections.diskSizeGb).to.equal(64);
 
     // And they are what the form shows, not just what is in the state
+    const [nodeSelect, storageSelect] = el.shadowRoot!.querySelectorAll(
+      "select.select-dropdown"
+    ) as NodeListOf<HTMLSelectElement>;
+    expect(nodeSelect.value).to.equal("pve2");
+    expect(storageSelect.value).to.equal("local-lvm");
     const text = el.shadowRoot!.textContent!;
     expect(text).to.contain("8 cores");
     expect(text).to.contain("8 GB");

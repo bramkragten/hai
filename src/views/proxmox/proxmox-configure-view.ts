@@ -686,14 +686,16 @@ export class ProxmoxConfigureView extends LitElement {
             ${this._loadingNodes
               ? html`<span class="loading-text">Loading nodes...</span>`
               : html`
-                  <select
-                    class="select-dropdown"
-                    .value=${this._selectedNode}
-                    @change=${this._onNodeChange}
-                  >
+                  <select class="select-dropdown" @change=${this._onNodeChange}>
                     ${this._nodes.map(
+                      // Selecting on the option, not the select: the select's
+                      // value is set before its options exist, so a restored
+                      // node other than the first would not show
                       (node) => html`
-                        <option value=${node.name}>
+                        <option
+                          value=${node.name}
+                          ?selected=${node.name === this._selectedNode}
+                        >
                           ${node.name}
                           ${node.cpu_usage !== undefined
                             ? `(CPU: ${node.cpu_usage.toFixed(1)}%)`
@@ -719,13 +721,15 @@ export class ProxmoxConfigureView extends LitElement {
               : html`
                   <select
                     class="select-dropdown"
-                    .value=${this._selectedStorage}
                     @change=${this._onStorageChange}
                     ?disabled=${this._storages.length === 0}
                   >
                     ${this._storages.map(
                       (storage) => html`
-                        <option value=${storage.name}>
+                        <option
+                          value=${storage.name}
+                          ?selected=${storage.name === this._selectedStorage}
+                        >
                           ${storage.name} (${formatBytes(storage.available)}
                           free)
                         </option>
