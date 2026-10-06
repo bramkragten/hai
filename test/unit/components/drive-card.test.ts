@@ -17,7 +17,7 @@ describe("drive-card", () => {
 
   it("renders with formatted size", async () => {
     const el = await fixture<DriveCard>(html`
-      <drive-card name="Test" capacity="32000000000"></drive-card>
+      <drive-card name="Test" driveSize="32000000000"></drive-card>
     `);
 
     const size = el.shadowRoot!.querySelector(".size");
@@ -27,7 +27,7 @@ describe("drive-card", () => {
 
   it("formats large sizes in TB", async () => {
     const el = await fixture<DriveCard>(html`
-      <drive-card name="Test" capacity="2000000000000"></drive-card>
+      <drive-card name="Test" driveSize="2000000000000"></drive-card>
     `);
 
     const size = el.shadowRoot!.querySelector(".size");
@@ -36,7 +36,7 @@ describe("drive-card", () => {
 
   it("displays 0 GB for zero size", async () => {
     const el = await fixture<DriveCard>(html`
-      <drive-card name="Test" capacity="0"></drive-card>
+      <drive-card name="Test" driveSize="0"></drive-card>
     `);
 
     const size = el.shadowRoot!.querySelector(".size");
@@ -237,12 +237,12 @@ describe("drive-card", () => {
     expect(el.name).to.equal("My Drive");
   });
 
-  it("stores capacity property", async () => {
+  it("stores driveSize property", async () => {
     const el = await fixture<DriveCard>(html`
-      <drive-card name="Test" capacity="64000000000"></drive-card>
+      <drive-card name="Test" driveSize="64000000000"></drive-card>
     `);
 
-    expect(el.capacity).to.equal(64000000000);
+    expect(el.driveSize).to.equal(64000000000);
   });
 
   it("stores deviceType property", async () => {
@@ -300,15 +300,23 @@ describe("drive-card", () => {
     const group = async () => {
       const root = fixtureSync<HTMLElement>(html`
         <wa-radio-group radio-tag="drive-card" aria-label="Target drive">
-          <drive-card .value=${"a"} .name=${"A"} .capacity=${64e9}></drive-card>
+          <drive-card
+            .value=${"a"}
+            .name=${"A"}
+            .driveSize=${64e9}
+          ></drive-card>
           <drive-card
             .value=${"small"}
             .name=${"Too small"}
-            .capacity=${1e9}
+            .driveSize=${1e9}
             .disabled=${true}
             .disabledReason=${"\u26a0 Minimum 8 GB required"}
           ></drive-card>
-          <drive-card .value=${"c"} .name=${"C"} .capacity=${32e9}></drive-card>
+          <drive-card
+            .value=${"c"}
+            .name=${"C"}
+            .driveSize=${32e9}
+          ></drive-card>
         </wa-radio-group>
       `);
       await (root as HTMLElement & { updateComplete: Promise<unknown> })

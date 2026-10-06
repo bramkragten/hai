@@ -1,4 +1,4 @@
-import { html, css } from "lit";
+import { html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import WaRadio from "@home-assistant/webawesome/dist/components/radio/radio.js";
 
@@ -133,11 +133,14 @@ export class DeviceCard extends WaRadio {
         </div>
         ${this.checked
           ? html`<span class="selected-indicator" aria-hidden="true">✓</span>`
-          : ""}
+          : nothing}
       </div>
     `;
   }
 
+  // The card itself carries role="radio"/"button", so its accessible name is
+  // computed from its contents. The visible name below already supplies that;
+  // giving the image an alt would have screen readers announce it twice.
   private _renderImage() {
     if (this.image) {
       return html`<img src=${this.image} alt="" />`;

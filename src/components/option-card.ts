@@ -133,6 +133,9 @@ export class OptionCard extends LitElement {
     `;
   }
 
+  // The card itself carries role="button", so its accessible name is
+  // computed from its contents. The visible name below already supplies that;
+  // giving the image an alt would have screen readers announce it twice.
   private _renderIcon() {
     if (this.image) {
       return html`<img src=${this.image} alt="" />`;

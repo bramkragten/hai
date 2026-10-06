@@ -1,4 +1,4 @@
-import { html, css } from "lit";
+import { html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import WaRadio from "@home-assistant/webawesome/dist/components/radio/radio.js";
 import type { DeviceType } from "../api/types.js";
@@ -132,9 +132,13 @@ export class DriveCard extends WaRadio {
   @property({ type: String })
   name = "";
 
-  /** Drive capacity in bytes. Not `size` — that is WaRadio's t-shirt size. */
+  /**
+   * Drive size in bytes. Named `driveSize` rather than `size` because WaRadio
+   * uses `size` for its t-shirt sizing; `diskSize` is taken by the VM flows'
+   * virtual disk. Matches the `driveSize` wizard-state selection.
+   */
   @property({ type: Number })
-  capacity = 0;
+  driveSize = 0;
 
   @property({ type: String })
   deviceType: DeviceType = "unknown";
@@ -161,12 +165,12 @@ export class DriveCard extends WaRadio {
           </p>
           ${!this.disabled
             ? html`<p class="description">${this._getDescription()}</p>`
-            : ""}
+            : nothing}
         </div>
-        <span class="size">${this._formatSize(this.capacity)}</span>
+        <span class="size">${this._formatSize(this.driveSize)}</span>
         ${this.checked
           ? html`<span class="selected-indicator" aria-hidden="true">✓</span>`
-          : ""}
+          : nothing}
       </div>
     `;
   }
