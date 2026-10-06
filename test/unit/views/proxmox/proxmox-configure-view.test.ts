@@ -212,6 +212,69 @@ describe("proxmox-configure-view", () => {
     expect(selections.proxmoxStorage).to.equal("pve-storage");
   });
 
+  it("ignores an older lookup for the same node that fails after a newer one succeeded", async () => {
+    const storageFor = (node: string): ProxmoxStorage[] => [
+      {
+        name: `${node}-storage`,
+        storage_type: "dir",
+        content: ["images"],
+        available: 100,
+        total: 100,
+        active: true,
+      },
+    ];
+    // After the first visit's lookup, hold each storage lookup open in order
+    const pending: Deferred<ProxmoxStorage[]>[] = [];
+    let firstLookup = true;
+    mockTauriIpc((cmd, args) => {
+      switch (cmd) {
+        case "proxmox_list_nodes":
+          return [
+            { name: "pve", status: "online" },
+            { name: "pve2", status: "online" },
+          ];
+        case "proxmox_get_next_vm_id":
+          return 100;
+        case "proxmox_list_storage": {
+          const { node } = args as { node: string };
+          if (firstLookup) {
+            firstLookup = false;
+            return storageFor(node);
+          }
+          const lookup = deferred<ProxmoxStorage[]>();
+          pending.push(lookup);
+          return lookup.promise;
+        }
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+
+    const el = await mount();
+    const nodeSelect = el.shadowRoot!.querySelector(
+      "select.select-dropdown"
+    ) as HTMLSelectElement;
+    const pickNode = (node: string) => {
+      nodeSelect.value = node;
+      nodeSelect.dispatchEvent(new Event("change"));
+    };
+
+    // pve2, pve, pve2 again: two pve2 lookups are open at once
+    pickNode("pve2");
+    pickNode("pve");
+    pickNode("pve2");
+    const [olderPve2, pve, newerPve2] = pending;
+    newerPve2.resolve(storageFor("pve2"));
+    await settle();
+    pve.resolve(storageFor("pve"));
+    olderPve2.reject("storage unavailable");
+    await settle();
+
+    const selections = wizardState.getState().selections;
+    expect(selections.proxmoxNode).to.equal("pve2");
+    expect(selections.proxmoxStorage).to.equal("pve2-storage");
+    expect(el.shadowRoot!.textContent).to.not.contain("storage unavailable");
+  });
+
   it("drops the restored storage when its node is gone and the new node's lookup fails", async () => {
     wizardState.setSelection("proxmoxNode", "retired-node");
     wizardState.setSelection("proxmoxStorage", "retired-storage");

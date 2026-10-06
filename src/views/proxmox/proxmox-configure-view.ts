@@ -311,6 +311,9 @@ export class ProxmoxConfigureView extends LitElement {
    */
   private _vmIdChosen = false;
 
+  /** Bumped per storage lookup, so only the latest one applies its result */
+  private _storageLookup = 0;
+
   connectedCallback() {
     super.connectedCallback();
     this._unsubscribe = wizardState.subscribe((state) => {
@@ -408,9 +411,11 @@ export class ProxmoxConfigureView extends LitElement {
     if (!session) return;
 
     const node = this._selectedNode;
-    // Switching nodes quickly can have lookups finish out of order; only the
-    // one for the node that is selected now may update the storage
-    const isStale = () => !this.isConnected || node !== this._selectedNode;
+    // Switching nodes quickly can have lookups finish out of order, even two
+    // for the same node; only the latest one may update the storage
+    const lookup = ++this._storageLookup;
+    const isLatest = () => lookup === this._storageLookup;
+    const isStale = () => !this.isConnected || !isLatest();
 
     this._loadingStorage = true;
     try {
@@ -450,7 +455,7 @@ export class ProxmoxConfigureView extends LitElement {
             : "Failed to load storage";
     } finally {
       // A newer lookup is still running and owns the loading state
-      if (node === this._selectedNode) this._loadingStorage = false;
+      if (isLatest()) this._loadingStorage = false;
     }
   }
 
