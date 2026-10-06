@@ -1,17 +1,16 @@
 //! Image download and extraction functionality
 //!
-//! This module provides functions for downloading HAOS images,
-//! verifying checksums, and extracting compressed archives.
+//! This module provides functions for downloading HAOS images and
+//! extracting compressed archives.
 
 use crate::error::{Error, Result};
 use crate::types::{
     DeviceManifest, FlashProgress, FlashStage, GitHubRelease, HaosImage, HaosRelease, ImageFormat,
-    StableVersionInfo,
+    StableVersionInfo, UpdateInfo,
 };
 use crate::ProgressCallback;
 use directories::ProjectDirs;
 use futures_util::StreamExt;
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
@@ -40,19 +39,27 @@ pub fn get_cache_dir() -> Result<PathBuf> {
 }
 
 /// Fetch the device manifest
-///
-/// In mock mode, returns mock data. Otherwise fetches from the network.
 pub async fn get_device_manifest() -> Result<DeviceManifest> {
-    #[cfg(feature = "mock")]
-    {
-        if crate::is_mock_enabled() {
-            return Ok(crate::mock::get_mock_manifest());
-        }
-    }
-
-    // For now, return the mock manifest as a fallback
+    // For now, return the manifest bundled with the installer
     // TODO: Implement actual network fetch
-    Ok(crate::mock::get_mock_manifest())
+    Ok(crate::manifest::bundled_manifest())
+}
+
+/// Check whether a newer installer release is available
+pub async fn check_for_updates() -> Result<UpdateInfo> {
+    // TODO: Implement an actual update check
+    Ok(UpdateInfo {
+        update_available: false,
+        current_version: "0.1.0".to_string(),
+        latest_version: "0.1.0".to_string(),
+        download_url: Some(
+            "https://github.com/home-assistant/home-assistant-installer/releases".to_string(),
+        ),
+        release_notes_url: Some(
+            "https://github.com/home-assistant/home-assistant-installer/releases".to_string(),
+        ),
+        is_beta: false,
+    })
 }
 
 /// Check if cache should be skipped via environment variable
@@ -93,7 +100,8 @@ pub async fn is_cached(image: &HaosImage) -> Result<bool> {
         return Ok(false);
     }
 
-    // File size matches - for now, skip expensive SHA256 verification
+    // Size matches. A truncated or corrupt cache entry is caught later when the
+    // `.xz` container fails its integrity check during extraction.
     Ok(true)
 }
 
@@ -116,13 +124,6 @@ pub async fn cleanup_cache() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Compute SHA256 hash of a file
-pub async fn compute_file_sha256(path: &PathBuf) -> Result<String> {
-    let data = fs::read(path).await?;
-    let hash = Sha256::digest(&data);
-    Ok(hex::encode(hash))
 }
 
 /// Fetch the stable version info from Home Assistant (internal version with custom URL)
@@ -247,18 +248,11 @@ fn parse_github_release(release: GitHubRelease) -> Result<HaosRelease> {
             Err(_) => continue,
         };
 
-        // Parse SHA256 from digest field
-        let sha256 = asset
-            .digest
-            .and_then(|d| d.strip_prefix("sha256:").map(|s| s.to_string()))
-            .unwrap_or_default();
-
         images.push(HaosImage {
             board,
             format,
             download_url: asset.browser_download_url,
             size: asset.size,
-            sha256,
         });
     }
 
@@ -311,7 +305,6 @@ pub fn find_image_for_board<'a>(
 pub async fn download_image<P: ProgressCallback>(
     url: &str,
     dest_path: &PathBuf,
-    expected_sha256: Option<&str>,
     progress_callback: &P,
 ) -> Result<()> {
     #[cfg(feature = "mock")]
@@ -345,9 +338,6 @@ pub async fn download_image<P: ProgressCallback>(
 
     let total_size = response.content_length().unwrap_or(0);
 
-    // Releases published before GitHub added asset digests have an empty checksum
-    let expected_sha256 = expected_sha256.filter(|s| !s.is_empty());
-
     progress_callback.on_progress(FlashProgress {
         stage: FlashStage::Downloading,
         progress: 0,
@@ -357,11 +347,6 @@ pub async fn download_image<P: ProgressCallback>(
     });
 
     let mut file = std::fs::File::create(dest_path)?;
-    let mut hasher = if expected_sha256.is_some() {
-        Some(Sha256::new())
-    } else {
-        None
-    };
     let mut downloaded: u64 = 0;
     let mut last_progress_update: u64 = 0;
     let mut stream = response.bytes_stream();
@@ -371,10 +356,6 @@ pub async fn download_image<P: ProgressCallback>(
 
         use std::io::Write;
         file.write_all(&chunk)?;
-
-        if let Some(ref mut h) = hasher {
-            h.update(&chunk);
-        }
 
         downloaded += chunk.len() as u64;
 
@@ -394,18 +375,6 @@ pub async fn download_image<P: ProgressCallback>(
                 message: "Downloading image...".to_string(),
             });
             last_progress_update = downloaded;
-        }
-    }
-
-    // Verify checksum if provided
-    if let (Some(expected), Some(hasher)) = (expected_sha256, hasher) {
-        let actual = hex::encode(hasher.finalize());
-        if actual != expected {
-            std::fs::remove_file(dest_path)?;
-            return Err(Error::ChecksumMismatch {
-                expected: expected.to_string(),
-                actual,
-            });
         }
     }
 
@@ -474,7 +443,19 @@ pub async fn extract_xz<P: ProgressCallback>(
         let mut last_progress_update: u64 = 0;
 
         loop {
-            let bytes_read = decoder.read(&mut buffer)?;
+            // A read error here means the `.xz` stream failed its built-in
+            // integrity check: the download is corrupt or truncated.
+            let bytes_read = match decoder.read(&mut buffer) {
+                Ok(n) => n,
+                Err(e) => {
+                    let _ = std::fs::remove_file(&dest_path_clone);
+                    let _ = std::fs::remove_file(&archive_path_clone);
+                    return Err(Error::ExtractionFailed(format!(
+                        "downloaded image is corrupt or incomplete ({e}); \
+                         it has been discarded, please try flashing again"
+                    )));
+                }
+            };
             if bytes_read == 0 {
                 break;
             }
@@ -545,11 +526,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_device_manifest_mock() {
-        std::env::set_var("HA_INSTALLER_MOCK", "1");
+    async fn test_get_device_manifest_returns_bundled() {
         let manifest = get_device_manifest().await.unwrap();
-        assert!(!manifest.devices.is_empty());
-        std::env::remove_var("HA_INSTALLER_MOCK");
+        let bundled = crate::manifest::bundled_manifest();
+        assert_eq!(manifest.version, bundled.version);
+        assert_eq!(manifest.devices.len(), bundled.devices.len());
     }
 
     #[test]
@@ -621,14 +602,12 @@ mod tests {
                     format: ImageFormat::Raw,
                     download_url: "https://example.com/rpi5.img.xz".to_string(),
                     size: 100,
-                    sha256: "abc".to_string(),
                 },
                 HaosImage {
                     board: "green".to_string(),
                     format: ImageFormat::Raw,
                     download_url: "https://example.com/green.img.xz".to_string(),
                     size: 200,
-                    sha256: "def".to_string(),
                 },
             ],
         };
@@ -648,7 +627,6 @@ mod tests {
                 format: ImageFormat::Raw,
                 download_url: "https://example.com/rpi5.img.xz".to_string(),
                 size: 100,
-                sha256: "abc".to_string(),
             }],
         };
 
@@ -668,14 +646,12 @@ mod tests {
                     format: ImageFormat::Qcow2,
                     download_url: "https://example.com/aarch64.qcow2.xz".to_string(),
                     size: 300,
-                    sha256: "qcow".to_string(),
                 },
                 HaosImage {
                     board: "generic-aarch64".to_string(),
                     format: ImageFormat::Raw,
                     download_url: "https://example.com/aarch64.img.xz".to_string(),
                     size: 200,
-                    sha256: "raw".to_string(),
                 },
             ],
         };
@@ -698,20 +674,17 @@ mod tests {
                     name: "haos_rpi5-64-14.2.img.xz".to_string(),
                     size: 500_000_000,
                     browser_download_url: "https://github.com/download/rpi5.img.xz".to_string(),
-                    digest: Some("sha256:abc123".to_string()),
                 },
                 GitHubAsset {
                     name: "haos_generic-x86-64-14.2.qcow2.xz".to_string(),
                     size: 600_000_000,
                     browser_download_url: "https://github.com/download/x86.qcow2.xz".to_string(),
-                    digest: Some("sha256:def456".to_string()),
                 },
                 // Should be ignored (wrong extension)
                 GitHubAsset {
                     name: "haos_rpi5-64-14.2.img.xz.sha256".to_string(),
                     size: 100,
                     browser_download_url: "https://github.com/download/sha256".to_string(),
-                    digest: None,
                 },
             ],
         };
@@ -724,7 +697,6 @@ mod tests {
         let rpi_image = parsed.images.iter().find(|i| i.board == "rpi5-64").unwrap();
         assert_eq!(rpi_image.format, ImageFormat::Raw);
         assert_eq!(rpi_image.size, 500_000_000);
-        assert_eq!(rpi_image.sha256, "abc123");
 
         // Check x86 qcow2 image
         let x86_image = parsed
@@ -734,7 +706,6 @@ mod tests {
             .unwrap();
         assert_eq!(x86_image.format, ImageFormat::Qcow2);
         assert_eq!(x86_image.size, 600_000_000);
-        assert_eq!(x86_image.sha256, "def456");
     }
 
     #[tokio::test]
@@ -746,7 +717,6 @@ mod tests {
             format: ImageFormat::Raw,
             download_url: "https://example.com/test.img.xz".to_string(),
             size: 100,
-            sha256: "abc".to_string(),
         };
         let result = is_cached(&image).await.unwrap();
         assert!(!result);
@@ -762,7 +732,6 @@ mod tests {
             format: ImageFormat::Raw,
             download_url: "https://example.com/nonexistent-file-12345.img.xz".to_string(),
             size: 100,
-            sha256: "abc".to_string(),
         };
         let result = is_cached(&image).await.unwrap();
         assert!(!result);
@@ -791,7 +760,6 @@ mod tests {
             format: ImageFormat::Raw,
             download_url: "https://github.com/home-assistant/operating-system/releases/download/14.2/haos_rpi5-64-14.2.img.xz".to_string(),
             size: 100,
-            sha256: "abc".to_string(),
         };
 
         let path = get_cached_image_path(&image).unwrap();
@@ -860,7 +828,6 @@ mod tests {
             format: ImageFormat::Raw,
             download_url: "no-slashes-here".to_string(),
             size: 100,
-            sha256: "abc".to_string(),
         };
 
         let path = get_cached_image_path(&image).unwrap();
@@ -888,7 +855,6 @@ mod tests {
                 test_file.file_name().unwrap().to_string_lossy()
             ),
             size: 100,
-            sha256: "abc".to_string(),
         };
 
         let result = is_cached(&image).await.unwrap();
@@ -899,59 +865,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compute_file_sha256() {
-        // Create a temp file with known content
-        let cache_dir = get_cache_dir().unwrap();
-        let test_file = cache_dir.join("test_sha256.txt");
-        std::fs::write(&test_file, b"hello world").unwrap();
-
-        let hash = compute_file_sha256(&test_file).await.unwrap();
-        // SHA256 of "hello world" is known
-        assert_eq!(
-            hash,
-            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
-        );
-
-        std::fs::remove_file(&test_file).unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_compute_file_sha256_empty_file() {
-        let cache_dir = get_cache_dir().unwrap();
-        let test_file = cache_dir.join("test_sha256_empty.txt");
-        std::fs::write(&test_file, b"").unwrap();
-
-        let hash = compute_file_sha256(&test_file).await.unwrap();
-        // SHA256 of empty string
-        assert_eq!(
-            hash,
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        );
-
-        std::fs::remove_file(&test_file).unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_compute_file_sha256_nonexistent_file() {
-        let path = std::path::PathBuf::from("/nonexistent/file/path.txt");
-        let result = compute_file_sha256(&path).await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
     #[serial]
     async fn test_download_image_mock_mode() {
         std::env::set_var("HA_INSTALLER_MOCK", "1");
         let cache_dir = get_cache_dir().unwrap();
         let dest = cache_dir.join("mock_download_test.img");
 
-        let result = download_image(
-            "https://example.com/test.img",
-            &dest,
-            None,
-            &crate::NoOpProgress,
-        )
-        .await;
+        let result =
+            download_image("https://example.com/test.img", &dest, &crate::NoOpProgress).await;
 
         assert!(result.is_ok());
         std::env::remove_var("HA_INSTALLER_MOCK");
@@ -988,7 +909,7 @@ mod tests {
         let cache_dir = get_cache_dir().unwrap();
         let dest = cache_dir.join("test_404.img");
 
-        let result = download_image(&url, &dest, None, &crate::NoOpProgress).await;
+        let result = download_image(&url, &dest, &crate::NoOpProgress).await;
         assert!(result.is_err());
 
         if let Err(e) = result {
@@ -1019,7 +940,7 @@ mod tests {
         // Clean up any existing file from previous test runs
         let _ = std::fs::remove_file(&dest);
 
-        let result = download_image(&url, &dest, None, &crate::NoOpProgress).await;
+        let result = download_image(&url, &dest, &crate::NoOpProgress).await;
         assert!(result.is_err());
 
         mock.assert_async().await;
@@ -1046,7 +967,7 @@ mod tests {
         let cache_dir = get_cache_dir().unwrap();
         let dest = cache_dir.join("test_download_success.img");
 
-        let result = download_image(&url, &dest, None, &crate::NoOpProgress).await;
+        let result = download_image(&url, &dest, &crate::NoOpProgress).await;
         assert!(result.is_ok());
 
         // Verify file was created and has correct content
@@ -1055,74 +976,6 @@ mod tests {
 
         mock.assert_async().await;
         std::fs::remove_file(&dest).unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_download_image_with_checksum_verification_success() {
-        std::env::remove_var("HA_INSTALLER_MOCK");
-
-        let mut server = mockito::Server::new_async().await;
-
-        let test_data = b"test image data";
-        // Pre-computed SHA256 of "test image data"
-        let expected_sha = "fc50f1a3c9cbf0154d7dc87998446624c8b78f84c5cbef4f8139a0c8be1e4976";
-
-        let mock = server
-            .mock("GET", "/test.img.xz")
-            .with_status(200)
-            .with_header("content-length", &test_data.len().to_string())
-            .with_body(test_data.as_slice())
-            .create_async()
-            .await;
-
-        let url = format!("{}/test.img.xz", server.url());
-        let cache_dir = get_cache_dir().unwrap();
-        let dest = cache_dir.join("test_checksum_success.img");
-
-        // Clean up any existing file from previous test runs
-        let _ = std::fs::remove_file(&dest);
-
-        let result = download_image(&url, &dest, Some(expected_sha), &crate::NoOpProgress).await;
-        assert!(result.is_ok());
-
-        mock.assert_async().await;
-        std::fs::remove_file(&dest).unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_download_image_checksum_mismatch() {
-        std::env::remove_var("HA_INSTALLER_MOCK");
-
-        let mut server = mockito::Server::new_async().await;
-
-        let test_data = b"test data";
-        let wrong_sha = "0000000000000000000000000000000000000000000000000000000000000000";
-
-        let mock = server
-            .mock("GET", "/test.img.xz")
-            .with_status(200)
-            .with_header("content-length", &test_data.len().to_string())
-            .with_body(test_data.as_slice())
-            .create_async()
-            .await;
-
-        let url = format!("{}/test.img.xz", server.url());
-        let cache_dir = get_cache_dir().unwrap();
-        let dest = cache_dir.join("test_checksum_fail.img");
-
-        let result = download_image(&url, &dest, Some(wrong_sha), &crate::NoOpProgress).await;
-        assert!(result.is_err());
-
-        if let Err(e) = result {
-            assert!(matches!(e, crate::error::Error::ChecksumMismatch { .. }));
-        }
-
-        // File should be deleted on checksum failure
-        assert!(!dest.exists());
-
-        mock.assert_async().await;
     }
 
     #[tokio::test]
@@ -1164,7 +1017,7 @@ mod tests {
             calls: calls.clone(),
         };
 
-        let result = download_image(&url, &dest, None, &callback).await;
+        let result = download_image(&url, &dest, &callback).await;
         assert!(result.is_ok());
 
         // Check that we got progress callbacks
@@ -1200,7 +1053,7 @@ mod tests {
         let cache_dir = get_cache_dir().unwrap();
         let dest = cache_dir.join("test_no_length.img");
 
-        let result = download_image(&url, &dest, None, &crate::NoOpProgress).await;
+        let result = download_image(&url, &dest, &crate::NoOpProgress).await;
         assert!(result.is_ok());
 
         mock.assert_async().await;
@@ -1251,6 +1104,38 @@ mod tests {
 
         let result = extract_xz(&archive_path, &dest_path, &crate::NoOpProgress).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_extract_xz_corrupt_archive_is_discarded() {
+        std::env::remove_var("HA_INSTALLER_MOCK");
+
+        use std::io::Write;
+
+        let cache_dir = get_cache_dir().unwrap();
+        let archive_path = cache_dir.join("test_corrupt.img.xz");
+        let extracted_path = cache_dir.join("test_corrupt_extracted.img");
+
+        // Write a valid xz stream, then truncate its tail so the container's
+        // integrity check fails part-way through decoding.
+        {
+            let file = std::fs::File::create(&archive_path).unwrap();
+            let mut encoder = xz2::write::XzEncoder::new(file, 1);
+            encoder.write_all(&vec![0u8; 256 * 1024]).unwrap();
+            encoder.finish().unwrap();
+        }
+        let mut bytes = std::fs::read(&archive_path).unwrap();
+        bytes.truncate(bytes.len() - 16);
+        std::fs::write(&archive_path, &bytes).unwrap();
+
+        let result = extract_xz(&archive_path, &extracted_path, &crate::NoOpProgress).await;
+        assert!(matches!(result, Err(Error::ExtractionFailed(_))));
+
+        // Both the corrupt archive and the partial output are cleaned up so the
+        // next attempt re-downloads instead of failing on the same bad cache.
+        assert!(!archive_path.exists());
+        assert!(!extracted_path.exists());
     }
 
     #[tokio::test]
@@ -1328,7 +1213,6 @@ mod tests {
                 test_file.file_name().unwrap().to_string_lossy()
             ),
             size: 100,
-            sha256: "abc".to_string(),
         };
 
         let result = is_cached(&image).await.unwrap();
@@ -1347,44 +1231,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_parse_github_release_with_missing_digest() {
-        use crate::types::{GitHubAsset, GitHubRelease};
-
-        let release = GitHubRelease {
-            tag_name: "14.2".to_string(),
-            assets: vec![GitHubAsset {
-                name: "haos_rpi4-14.2.img.xz".to_string(),
-                size: 500_000_000,
-                browser_download_url: "https://github.com/download/rpi4.img.xz".to_string(),
-                digest: None, // No digest
-            }],
-        };
-
-        let parsed = parse_github_release(release).unwrap();
-        assert_eq!(parsed.images.len(), 1);
-        assert_eq!(parsed.images[0].sha256, ""); // Should be empty string
-    }
-
-    #[tokio::test]
-    async fn test_parse_github_release_with_digest_no_prefix() {
-        use crate::types::{GitHubAsset, GitHubRelease};
-
-        let release = GitHubRelease {
-            tag_name: "14.2".to_string(),
-            assets: vec![GitHubAsset {
-                name: "haos_rpi4-14.2.img.xz".to_string(),
-                size: 500_000_000,
-                browser_download_url: "https://github.com/download/rpi4.img.xz".to_string(),
-                digest: Some("abc123".to_string()), // No "sha256:" prefix
-            }],
-        };
-
-        let parsed = parse_github_release(release).unwrap();
-        assert_eq!(parsed.images.len(), 1);
-        assert_eq!(parsed.images[0].sha256, ""); // Should be empty when prefix missing
-    }
-
-    #[tokio::test]
     async fn test_parse_github_release_invalid_filename_skipped() {
         use crate::types::{GitHubAsset, GitHubRelease};
 
@@ -1394,7 +1240,6 @@ mod tests {
                 name: "invalid_filename.img.xz".to_string(), // Doesn't match pattern
                 size: 500_000_000,
                 browser_download_url: "https://github.com/download/invalid.img.xz".to_string(),
-                digest: Some("sha256:abc".to_string()),
             }],
         };
 
@@ -1429,14 +1274,6 @@ mod tests {
 
         // Can't easily test this without dependency injection
         // This test documents the intent
-    }
-
-    #[tokio::test]
-    async fn test_get_device_manifest_fallback() {
-        // Without mock mode, should return mock manifest as fallback
-        std::env::remove_var("HA_INSTALLER_MOCK");
-        let manifest = get_device_manifest().await.unwrap();
-        assert!(!manifest.devices.is_empty());
     }
 
     // HTTP Mock Tests Module
@@ -1810,74 +1647,6 @@ mod tests {
 
         #[tokio::test]
         #[serial]
-        async fn test_fetch_release_missing_digest() {
-            std::env::remove_var("HA_INSTALLER_MOCK");
-            let mut server = mockito::Server::new_async().await;
-
-            let mock = server
-                .mock("GET", "/tags/14.2")
-                .with_status(200)
-                .with_header("content-type", "application/json")
-                .with_body(
-                    r#"{
-                    "tag_name": "14.2",
-                    "assets": [{
-                        "name": "haos_rpi4-14.2.img.xz",
-                        "size": 400000000,
-                        "browser_download_url": "https://github.com/download/rpi4.img.xz",
-                        "digest": null
-                    }]
-                }"#,
-                )
-                .create_async()
-                .await;
-
-            let result = fetch_release_from_api(&server.url(), "14.2").await;
-            assert!(result.is_ok());
-
-            let release = result.unwrap();
-            assert_eq!(release.images.len(), 1);
-            assert_eq!(release.images[0].sha256, ""); // Should be empty when digest is null
-
-            mock.assert_async().await;
-        }
-
-        #[tokio::test]
-        #[serial]
-        async fn test_fetch_release_digest_without_prefix() {
-            std::env::remove_var("HA_INSTALLER_MOCK");
-            let mut server = mockito::Server::new_async().await;
-
-            let mock = server
-                .mock("GET", "/tags/14.2")
-                .with_status(200)
-                .with_header("content-type", "application/json")
-                .with_body(
-                    r#"{
-                    "tag_name": "14.2",
-                    "assets": [{
-                        "name": "haos_rpi4-14.2.img.xz",
-                        "size": 400000000,
-                        "browser_download_url": "https://github.com/download/rpi4.img.xz",
-                        "digest": "abc123"
-                    }]
-                }"#,
-                )
-                .create_async()
-                .await;
-
-            let result = fetch_release_from_api(&server.url(), "14.2").await;
-            assert!(result.is_ok());
-
-            let release = result.unwrap();
-            assert_eq!(release.images.len(), 1);
-            assert_eq!(release.images[0].sha256, ""); // Should be empty when sha256: prefix is missing
-
-            mock.assert_async().await;
-        }
-
-        #[tokio::test]
-        #[serial]
         async fn test_download_image_network_timeout() {
             std::env::remove_var("HA_INSTALLER_MOCK");
 
@@ -1888,7 +1657,6 @@ mod tests {
             let result = download_image(
                 "http://192.0.2.1:9999/nonexistent", // Using TEST-NET-1 IP that should timeout
                 &dest,
-                None,
                 &crate::NoOpProgress,
             )
             .await;
@@ -1915,7 +1683,7 @@ mod tests {
             let cache_dir = get_cache_dir().unwrap();
             let dest = cache_dir.join("test_empty.img");
 
-            let result = download_image(&url, &dest, None, &crate::NoOpProgress).await;
+            let result = download_image(&url, &dest, &crate::NoOpProgress).await;
             assert!(result.is_ok());
 
             // Verify empty file was created
@@ -1952,7 +1720,7 @@ mod tests {
             let cache_dir = get_cache_dir().unwrap();
             let dest = cache_dir.join("test_redirect.img");
 
-            let result = download_image(&url, &dest, None, &crate::NoOpProgress).await;
+            let result = download_image(&url, &dest, &crate::NoOpProgress).await;
             assert!(result.is_ok());
 
             // Verify file content

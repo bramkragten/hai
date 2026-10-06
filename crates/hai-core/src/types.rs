@@ -155,6 +155,27 @@ pub struct FlashRequest {
     pub board: String,
     /// Whether to verify after writing
     pub verify: bool,
+    /// What the device at `device_id` looked like when the user selected it
+    pub expected_device: ExpectedDevice,
+}
+
+/// Identity of the selected drive, re-checked right before writing.
+///
+/// `device_id` is a path the OS can reassign to another device, for example
+/// while the image downloads. `None` means the field was unknown.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ExpectedDevice {
+    pub size: Option<u64>,
+    pub model: Option<String>,
+    pub vendor: Option<String>,
+}
+
+impl ExpectedDevice {
+    /// Whether `device` still looks like the selected drive. Every device
+    /// reports a size, so an unknown expected size never matches.
+    pub fn matches(&self, device: &BlockDevice) -> bool {
+        self.size == Some(device.size) && self.model == device.model && self.vendor == device.vendor
+    }
 }
 
 /// HAOS release information from GitHub
@@ -192,8 +213,6 @@ pub struct HaosImage {
     pub download_url: String,
     /// File size in bytes
     pub size: u64,
-    /// SHA256 checksum (hex string)
-    pub sha256: String,
 }
 
 /// GitHub release asset from API
@@ -202,8 +221,6 @@ pub struct GitHubAsset {
     pub name: String,
     pub size: u64,
     pub browser_download_url: String,
-    /// Digest in format "sha256:hexstring"
-    pub digest: Option<String>,
 }
 
 /// GitHub release from API
@@ -586,14 +603,12 @@ mod tests {
                     format: ImageFormat::Raw,
                     download_url: "https://example.com/haos-rpi5-16.3.img.xz".to_string(),
                     size: 500000000,
-                    sha256: "abc123def456".to_string(),
                 },
                 HaosImage {
                     board: "generic-x86-64".to_string(),
                     format: ImageFormat::Raw,
                     download_url: "https://example.com/haos-generic-x86-16.3.img.xz".to_string(),
                     size: 600000000,
-                    sha256: "def789abc012".to_string(),
                 },
             ],
         };
@@ -608,7 +623,6 @@ mod tests {
             assert_eq!(original.board, deserialized.board);
             assert_eq!(original.download_url, deserialized.download_url);
             assert_eq!(original.size, deserialized.size);
-            assert_eq!(original.sha256, deserialized.sha256);
         }
     }
 
@@ -634,6 +648,7 @@ mod tests {
             device_id: "/dev/sda".to_string(),
             board: "rpi5-64".to_string(),
             verify: true,
+            expected_device: ExpectedDevice::default(),
         };
 
         let json = serde_json::to_string(&request).unwrap();
@@ -650,6 +665,7 @@ mod tests {
             device_id: "disk2".to_string(),
             board: "green".to_string(),
             verify: false,
+            expected_device: ExpectedDevice::default(),
         };
 
         let json = serde_json::to_string(&request).unwrap();
@@ -848,22 +864,6 @@ mod tests {
 
     // HaosImage edge cases
     #[test]
-    fn test_haos_image_empty_sha256() {
-        let image = HaosImage {
-            board: "rpi5-64".to_string(),
-            format: ImageFormat::Raw,
-            download_url: "https://example.com/image.xz".to_string(),
-            size: 500_000_000,
-            sha256: "".to_string(),
-        };
-        let json = serde_json::to_string(&image).unwrap();
-        let parsed: HaosImage = serde_json::from_str(&json).unwrap();
-        assert!(parsed.sha256.is_empty());
-        assert_eq!(parsed.board, "rpi5-64");
-        assert_eq!(parsed.size, 500_000_000);
-    }
-
-    #[test]
     fn test_haos_image_format_serialization() {
         assert_eq!(serde_json::to_string(&ImageFormat::Raw).unwrap(), "\"raw\"");
         assert_eq!(
@@ -872,7 +872,7 @@ mod tests {
         );
 
         // A missing format defaults to raw
-        let json = r#"{"board":"green","download_url":"u","size":1,"sha256":""}"#;
+        let json = r#"{"board":"green","download_url":"u","size":1}"#;
         let parsed: HaosImage = serde_json::from_str(json).unwrap();
         assert_eq!(parsed.format, ImageFormat::Raw);
     }

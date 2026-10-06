@@ -66,17 +66,8 @@ pub async fn list_devices() -> Result<Vec<BlockDevice>> {
             continue;
         }
 
-        // Skip non-removable, non-hotplug devices (likely system drives)
         let is_removable = dev.rm == Some(true) || dev.hotplug == Some(true);
-        if !is_removable {
-            continue;
-        }
-
-        // Skip very small devices (< 1GB)
         let size = dev.size.unwrap_or(0);
-        if size < 1_000_000_000 {
-            continue;
-        }
 
         // Determine device type
         let device_type = determine_device_type(&dev);
@@ -117,7 +108,7 @@ pub(super) fn determine_device_type(dev: &LsblkDevice) -> DeviceType {
         return DeviceType::SdCard;
     }
 
-    if !model.contains("ssd") && (model.contains("sd ") || model.contains("sd card")) {
+    if mentions_sd_card(&model) {
         return DeviceType::SdCard;
     }
 
@@ -276,6 +267,39 @@ mod tests {
             ro: Some(false),
             tran: Some("usb".to_string()),
             model: Some("SD Card Reader".to_string()),
+            vendor: None,
+            hotplug: Some(true),
+        };
+        assert_eq!(determine_device_type(&dev), DeviceType::SdCard);
+    }
+
+    #[test]
+    fn test_determine_device_type_portable_ssd_is_not_sd_card() {
+        // "SSD" contains "sd" as a substring; only whole-word "SD" counts.
+        let dev = LsblkDevice {
+            name: "sdb".to_string(),
+            size: Some(500_000_000_000),
+            device_type: Some("disk".to_string()),
+            rm: Some(false),
+            ro: Some(false),
+            tran: Some("usb".to_string()),
+            model: Some("Portable SSD T7".to_string()),
+            vendor: Some("Samsung".to_string()),
+            hotplug: Some(true),
+        };
+        assert_eq!(determine_device_type(&dev), DeviceType::UsbDrive);
+    }
+
+    #[test]
+    fn test_determine_device_type_microsd_reader_is_sd_card() {
+        let dev = LsblkDevice {
+            name: "sdb".to_string(),
+            size: Some(32_000_000_000),
+            device_type: Some("disk".to_string()),
+            rm: Some(true),
+            ro: Some(false),
+            tran: Some("usb".to_string()),
+            model: Some("microSD".to_string()),
             vendor: None,
             hotplug: Some(true),
         };

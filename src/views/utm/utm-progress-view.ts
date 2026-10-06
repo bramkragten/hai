@@ -842,7 +842,7 @@ export class UtmProgressView extends LitElement {
   }
 
   /**
-   * Wait for the Home Assistant webserver to be ready on port 8123, polling
+   * Wait for the Home Assistant webserver to be ready on port 80, polling
    * every 2 seconds for up to 5 minutes.
    *
    * A timeout throws: reporting "Installation complete!" for a VM where Home
@@ -857,7 +857,7 @@ export class UtmProgressView extends LitElement {
       timeout: HA_READY_TIMEOUT_MS,
       signal,
       timeoutMessage:
-        `Home Assistant did not respond at ${ipAddress}:8123 within 5 minutes. ` +
+        `Home Assistant did not respond at ${ipAddress} within 5 minutes. ` +
         `The virtual machine was created - check whether it is running in UTM, ` +
         `then try again to keep waiting for it.`,
     });
@@ -882,7 +882,7 @@ export class UtmProgressView extends LitElement {
       signal,
       timeoutMessage:
         `Home Assistant did not finish installing updates within 60 minutes. ` +
-        `Open http://${ipAddress}:8123 to check on it, or try again to keep ` +
+        `Open http://${ipAddress} to check on it, or try again to keep ` +
         `waiting for it.`,
     });
   }
