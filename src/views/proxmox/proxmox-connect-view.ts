@@ -213,7 +213,18 @@ export class ProxmoxConnectView extends LitElement {
   }
 
   private _onKeyDown(e: KeyboardEvent) {
-    if (e.key === "Enter" && !this._connecting && !this._connected) {
+    // wa-input's own buttons (the password toggle) send their keydown through
+    // the host too, and Enter there should reveal the password, not connect.
+    // Enter that confirms an input method composition isn't a submit either.
+    const fromTextField = e.composedPath()[0] instanceof HTMLInputElement;
+
+    if (
+      e.key === "Enter" &&
+      fromTextField &&
+      !e.isComposing &&
+      !this._connecting &&
+      !this._connected
+    ) {
       this.connect();
     }
   }

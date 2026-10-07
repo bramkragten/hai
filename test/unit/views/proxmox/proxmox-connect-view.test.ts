@@ -113,6 +113,48 @@ describe("proxmox-connect-view", () => {
     expect(error!.textContent).to.include("fill in all fields");
   });
 
+  it("connects on Enter in a field, but not on Enter on the password toggle", async () => {
+    const { el, inputs } = await renderView();
+    let connects = 0;
+    el.connect = async () => {
+      connects++;
+      return false;
+    };
+
+    const enter = () =>
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        composed: true,
+      });
+
+    const toggle = inputs[2].shadowRoot!.querySelector(".password-toggle")!;
+    toggle.dispatchEvent(enter());
+    expect(connects, "Enter on the password toggle").to.equal(0);
+
+    nativeInput(inputs[2]).dispatchEvent(enter());
+    expect(connects, "Enter in the password field").to.equal(1);
+  });
+
+  it("does not connect on Enter that confirms an input method composition", async () => {
+    const { el, inputs } = await renderView();
+    let connects = 0;
+    el.connect = async () => {
+      connects++;
+      return false;
+    };
+
+    nativeInput(inputs[1]).dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        isComposing: true,
+        bubbles: true,
+        composed: true,
+      })
+    );
+    expect(connects).to.equal(0);
+  });
+
   it("disables the fields while connecting and stores the session", async () => {
     const { el, inputs } = await renderView();
     await typeInto(el, inputs[0], "https://192.168.1.100:8006/");
