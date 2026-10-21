@@ -146,7 +146,6 @@ async function simulateFlashProgress(
     stage: FlashProgress["stage"];
     message: string;
     totalBytes: number;
-    showBytes: boolean;
     steps: number;
     delay: number;
   }> = [
@@ -154,7 +153,6 @@ async function simulateFlashProgress(
       stage: "downloading",
       message: localize("api.commands.downloading_image"),
       totalBytes: compressedSize,
-      showBytes: true,
       steps: 30,
       delay: 150,
     },
@@ -163,7 +161,6 @@ async function simulateFlashProgress(
       message: localize("api.commands.extracting_image"),
       // Measured against the compressed archive, the only size known up front
       totalBytes: compressedSize,
-      showBytes: true,
       steps: 10,
       delay: 100,
     },
@@ -171,7 +168,6 @@ async function simulateFlashProgress(
       stage: "writing",
       message: localize("api.commands.writing_to_device"),
       totalBytes: extractedSize,
-      showBytes: true,
       steps: 35,
       delay: 175,
     },
@@ -179,7 +175,6 @@ async function simulateFlashProgress(
       stage: "verifying",
       message: localize("api.commands.verifying_written_data"),
       totalBytes: extractedSize,
-      showBytes: true,
       steps: 15,
       delay: 150,
     },
@@ -187,7 +182,6 @@ async function simulateFlashProgress(
       stage: "finalizing",
       message: localize("api.commands.finalizing"),
       totalBytes: 0,
-      showBytes: false,
       steps: 10,
       delay: 100,
     },
@@ -196,14 +190,7 @@ async function simulateFlashProgress(
   mockFlashAttempt = attempt;
   mockFlashCancelled = false;
 
-  for (const {
-    stage,
-    message,
-    totalBytes,
-    showBytes,
-    steps,
-    delay,
-  } of stages) {
+  for (const { stage, message, totalBytes, steps, delay } of stages) {
     for (let step = 0; step <= steps; step++) {
       // Shaped like the native rejection
       if (mockFlashCancelled) {
@@ -221,10 +208,8 @@ async function simulateFlashProgress(
       onProgress({
         stage,
         progress: Math.round(stageProgress),
-        bytes_processed: showBytes
-          ? Math.round((totalBytes * stageProgress) / 100)
-          : 0,
-        total_bytes: showBytes ? totalBytes : 0,
+        bytes_processed: Math.round((totalBytes * stageProgress) / 100),
+        total_bytes: totalBytes,
         message,
       });
 

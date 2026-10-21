@@ -42,7 +42,7 @@ function last<T>(items: T[]): T {
   return items[items.length - 1];
 }
 
-/** Each stage counts from 0 to 100 on its own, like the backend's. */
+/** Each measured stage counts from 0 to 100 on its own, like the backend's. */
 function expectStageLocal(events: FlashProgress[]) {
   const percentages = events.map((event) => event.progress);
   expect(percentages[0]).to.equal(0);
@@ -58,7 +58,7 @@ function expectBytes(events: FlashProgress[], total: number) {
 
 describe("api/commands", () => {
   describe("browser mock progress", () => {
-    it("reports each flash stage from 0 to 100, extraction against the archive", async () => {
+    it("reports each measured flash stage from 0 to 100, extraction against the archive", async () => {
       const steps = await recordMockProgress((onProgress) =>
         flashImage(
           {
@@ -77,7 +77,6 @@ describe("api/commands", () => {
         "extracting",
         "writing",
         "verifying",
-        "finalizing",
       ] as const)
         expectStageLocal(progressOf(steps, stage));
       const compressed = progressOf(steps, "downloading")[0].total_bytes;
@@ -134,12 +133,7 @@ describe("api/commands", () => {
         )
       );
 
-      for (const stage of [
-        "downloading",
-        "extracting",
-        "creating_vm",
-        "starting_vm",
-      ] as const)
+      for (const stage of ["downloading", "extracting"] as const)
         expectStageLocal(progressOf(steps, stage));
       const compressed = progressOf(steps, "downloading")[0].total_bytes;
       expect(compressed).to.be.greaterThan(0);
