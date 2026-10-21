@@ -170,7 +170,7 @@ export class InstallProgress extends LitElement {
 
     @media (prefers-color-scheme: dark) {
       .stage-dot {
-        background-color: var(--ha-border-color, #444444);
+        background-color: #444444;
       }
     }
 
