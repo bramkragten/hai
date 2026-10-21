@@ -66,53 +66,55 @@ const OTHER_OPTIONS: OtherOption[] = [
 @customElement("other-options-view")
 export class OtherOptionsView extends LitElement {
   protected readonly _accessibility = new ViewAccessibility(this);
-  static styles = css`
-    ${reducedMotionStyles}
-    ${pageHeaderStyles}
-    :host {
-      display: flex;
-      flex-direction: column;
-      box-sizing: border-box;
-      height: 100%;
-    }
+  static styles = [
+    reducedMotionStyles,
+    pageHeaderStyles,
+    css`
+      :host {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        height: 100%;
+      }
 
-    .content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      overflow-y: auto;
-      padding: 1rem 2rem 2rem;
-    }
+      .content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow-y: auto;
+        padding: 1rem 2rem 2rem;
+      }
 
-    h1 {
-      font-size: 1.75rem;
-      font-weight: 400;
-      color: var(--ha-text-color, #212121);
-      margin: 0 0 0.5rem 0;
-      text-align: center;
-    }
+      h1 {
+        font-size: 1.75rem;
+        font-weight: 400;
+        color: var(--ha-text-color, #212121);
+        margin: 0 0 0.5rem 0;
+        text-align: center;
+      }
 
-    .subtitle {
-      font-size: 1rem;
-      color: var(--ha-secondary-text-color, #727272);
-      margin: 0 0 2rem 0;
-      text-align: center;
-      max-width: 500px;
-    }
+      .subtitle {
+        font-size: 1rem;
+        color: var(--ha-secondary-text-color, #727272);
+        margin: 0 0 2rem 0;
+        text-align: center;
+        max-width: 500px;
+      }
 
-    .options-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      max-width: 600px;
-      width: 100%;
-    }
+      .options-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        max-width: 600px;
+        width: 100%;
+      }
 
-    .subtitle a {
-      color: var(--ha-primary-color, #03a9f4);
-    }
-  `;
+      .subtitle a {
+        color: var(--ha-primary-color, #03a9f4);
+      }
+    `,
+  ];
 
   render() {
     return html`

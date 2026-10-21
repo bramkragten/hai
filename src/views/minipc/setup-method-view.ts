@@ -13,39 +13,41 @@ import "../../components/option-card.js";
 @customElement("minipc-setup-method-view")
 export class MiniPCSetupMethodView extends LitElement {
   protected readonly _accessibility = new ViewAccessibility(this);
-  static styles = css`
-    ${reducedMotionStyles}
-    :host {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100%;
-    }
+  static styles = [
+    reducedMotionStyles,
+    css`
+      :host {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100%;
+      }
 
-    h2 {
-      font-size: 1.5rem;
-      font-weight: 400;
-      color: var(--ha-text-color, #212121);
-      margin: 0 0 0.5rem 0;
-      text-align: center;
-    }
+      h2 {
+        font-size: 1.5rem;
+        font-weight: 400;
+        color: var(--ha-text-color, #212121);
+        margin: 0 0 0.5rem 0;
+        text-align: center;
+      }
 
-    .subtitle {
-      font-size: 1rem;
-      color: var(--ha-secondary-text-color, #727272);
-      margin: 0 0 2rem 0;
-      text-align: center;
-      max-width: 500px;
-    }
+      .subtitle {
+        font-size: 1rem;
+        color: var(--ha-secondary-text-color, #727272);
+        margin: 0 0 2rem 0;
+        text-align: center;
+        max-width: 500px;
+      }
 
-    .options {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      width: 100%;
-      max-width: 500px;
-    }
-  `;
+      .options {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        width: 100%;
+        max-width: 500px;
+      }
+    `,
+  ];
 
   @state()
   private _showUsbDialog = false;
