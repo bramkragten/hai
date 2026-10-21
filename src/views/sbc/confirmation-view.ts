@@ -6,6 +6,7 @@ import { customElement, state } from "lit/decorators.js";
 import { wizardState, type WizardState } from "../../state/wizard-state.js";
 import { formatBytes, getHaosRelease } from "../../api/commands.js";
 import { selectedWifi } from "../../utils/wifi.js";
+import { renderDriveIcon } from "../../components/drive-icon.js";
 import {
   findInstaller,
   installerName,
@@ -284,7 +285,9 @@ export class ConfirmationView extends LitElement {
 
         <!-- Drive -->
         <div class="summary-row">
-          <div class="icon-container">${this._renderDriveIcon()}</div>
+          <div class="icon-container">
+            ${renderDriveIcon(selections.driveType ?? "unknown")}
+          </div>
           <div class="summary-info">
             <p class="summary-label">
               ${localize("views.sbc.confirmation_view.target_drive")}
@@ -415,16 +418,6 @@ export class ConfirmationView extends LitElement {
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path
           d="M6 2C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V4C20 2.9 19.1 2 18 2H6ZM6 4H18V20H6V4ZM8 6V8H10V6H8ZM14 6V8H16V6H14ZM11 10V12H13V10H11ZM8 14V16H10V14H8ZM14 14V16H16V14H14Z"
-        />
-      </svg>
-    `;
-  }
-
-  private _renderDriveIcon() {
-    return html`
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path
-          d="M18 2H10L4 8V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V4C20 2.9 19.1 2 18 2ZM12 8H10V4H12V8ZM15 8H13V4H15V8ZM18 8H16V4H18V8Z"
         />
       </svg>
     `;
