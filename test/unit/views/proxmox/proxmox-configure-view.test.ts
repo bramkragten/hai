@@ -131,6 +131,23 @@ describe("proxmox-configure-view", () => {
     ).to.include("VM ID");
   });
 
+  // Chromium ignores a pattern that is invalid under the `v` flag, which
+  // would leave every name valid
+  it("validates the display name against the allowed characters", async () => {
+    const el = await mount();
+    const name = el.shadowRoot!.querySelector<WaInput>("wa-input[pattern]")!;
+
+    // Set directly, as typing would sanitize the name before it is checked
+    name.value = "bad name!";
+    await name.updateComplete;
+    expect(name.checkValidity()).to.be.false;
+    expect(name.validity.patternMismatch).to.be.true;
+
+    name.value = "home-assistant_1.0";
+    await name.updateComplete;
+    expect(name.checkValidity()).to.be.true;
+  });
+
   it("shows storage labels without template indentation", async () => {
     const el = await mount();
     const select = el.shadowRoot!.querySelectorAll("wa-select")[1];

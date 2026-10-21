@@ -57,6 +57,12 @@ const CERTIFICATE_CHANGED = "proxmox_certificate_changed";
 const DIRECTORY_STORAGE_DOCS =
   "https://pve.proxmox.com/pve-docs/pve-admin-guide.html#storage_directory";
 
+/**
+ * Chromium (and so WebView2) compiles `pattern` with the `v` flag, where a
+ * bare `-` in a character class is a syntax error and the pattern is ignored.
+ */
+const VM_NAME_PATTERN = String.raw`[a-zA-Z0-9._\-]+`;
+
 function isSessionExpired(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -1194,7 +1200,7 @@ export class ProxmoxConfigureView extends LitElement {
               @input=${this._onNameChange}
               placeholder="home-assistant"
               maxlength="63"
-              pattern="[a-zA-Z0-9._-]+"
+              pattern=${VM_NAME_PATTERN}
               title=${localize(
                 "views.proxmox.proxmox_configure_view.only_letters_numbers_dash_underscore_and_period_allowed"
               )}
