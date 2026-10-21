@@ -109,7 +109,7 @@ export function renderErrorHelp() {
   // Reporting goes through the diagnostics dialog, which shows exactly what
   // a public issue would contain before anything leaves the installer
   return html`<p class="error-help">
-    <a href=${help} @click=${(event: Event) => openExternalLink(event, help)}
+    <a href=${help} @click=${openExternalLink}
       >${localize("common.installation_help")}</a
     >
     <span aria-hidden="true"> · </span>

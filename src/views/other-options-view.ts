@@ -134,8 +134,7 @@ export class OtherOptionsView extends LitElement {
                 href=${INSTALLATION_TYPES_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                @click=${(event: Event) =>
-                  openExternalLink(event, INSTALLATION_TYPES_URL)}
+                @click=${openExternalLink}
                 >${localize(
                   "views.other_options_view.compare_installation_types"
                 )}</a
@@ -152,7 +151,8 @@ export class OtherOptionsView extends LitElement {
                 .heading=${option.title}
                 .description=${option.description}
                 .icon=${option.icon}
-                @click=${() => openExternalUrl(option.url)}
+                data-url=${option.url}
+                @click=${this._onOptionClick}
                 ><span slot="end" aria-hidden="true">↗</span></option-card
               >
             `
@@ -160,6 +160,10 @@ export class OtherOptionsView extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  private async _onOptionClick(ev: Event) {
+    await openExternalUrl((ev.currentTarget as HTMLElement).dataset.url!);
   }
 
   private _onBack() {

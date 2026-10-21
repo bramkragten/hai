@@ -32,9 +32,8 @@ export function renderOpenHomeAssistantStep() {
         href="http://homeassistant.local"
         target="_blank"
         rel="noopener noreferrer"
-        @click=${(event: Event) =>
-          openExternalLink(event, "http://homeassistant.local")}
-        >${"homeassistant.local"}</a
+        @click=${openExternalLink}
+        >homeassistant.local</a
       >`,
       value1: html`<code
         >http://&lt;${localize("views.sbc.success_view.ip_address")}&gt;</code
@@ -131,7 +130,7 @@ export class SuccessView extends LitElement {
           href=${guide}
           target="_blank"
           rel="noopener noreferrer"
-          @click=${(event: Event) => openExternalLink(event, guide)}
+          @click=${openExternalLink}
           >${guide === "https://www.home-assistant.io/installation/"
             ? localize("views.sbc.success_view.installation_guide")
             : deviceName

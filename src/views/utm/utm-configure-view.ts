@@ -283,6 +283,19 @@ export class UtmConfigureView extends LitElement {
         });
   }
 
+  private _formatCores = (cores: number) =>
+    localize("views.proxmox.proxmox_configure_view.value_cores", {
+      value0: cores,
+    });
+
+  // The memory and disk sliders step through option indexes, so they show
+  // the option there
+  private _formatMemoryAt = (index: number) =>
+    this._formatMemory(this._getMemoryOptions()[index] ?? this._memoryMb);
+
+  private _formatDiskSizeAt = (index: number) =>
+    this._formatDiskSize(this._getDiskSizeOptions()[index]);
+
   private _getCpuDescription(): string {
     if (this._cpuCores <= 2) {
       return localize(
@@ -441,10 +454,7 @@ export class UtmConfigureView extends LitElement {
                 live(this._cpuCores)
               }
               @input=${this._onCoresChange}
-              .valueFormatter=${(value: number) =>
-                localize("views.proxmox.proxmox_configure_view.value_cores", {
-                  value0: value,
-                })}
+              .valueFormatter=${this._formatCores}
               ><div slot="label" class="setting-header">
                 <span class="setting-label"
                   >${localize(
@@ -477,8 +487,7 @@ export class UtmConfigureView extends LitElement {
               step="1"
               .value=${memoryIndex >= 0 ? memoryIndex : 0}
               @input=${this._onMemoryChange}
-              .valueFormatter=${(index: number) =>
-                this._formatMemory(memoryOptions[index] ?? this._memoryMb)}
+              .valueFormatter=${this._formatMemoryAt}
               ><div slot="label" class="setting-header">
                 <span class="setting-label"
                   >${localize(
@@ -505,8 +514,7 @@ export class UtmConfigureView extends LitElement {
               step="1"
               .value=${diskIndex >= 0 ? diskIndex : 0}
               @input=${this._onDiskSizeChange}
-              .valueFormatter=${(index: number) =>
-                this._formatDiskSize(diskSizeOptions[index])}
+              .valueFormatter=${this._formatDiskSizeAt}
               ><div slot="label" class="setting-header">
                 <span class="setting-label"
                   >${localize(

@@ -63,7 +63,7 @@ describe("info-dialog", () => {
 
   it("renders primary button with custom label", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog open primaryLabel="Got it"></info-dialog>
+      <info-dialog open primary-label="Got it"></info-dialog>
     `);
 
     const primaryButton = el.shadowRoot!.querySelector(
@@ -74,7 +74,7 @@ describe("info-dialog", () => {
 
   it("renders a danger primary button when asked to", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog open primaryVariant="danger"></info-dialog>
+      <info-dialog open primary-variant="danger"></info-dialog>
     `);
 
     expect(el.shadowRoot!.querySelector("wa-button[variant='brand']")).to.be
@@ -96,7 +96,7 @@ describe("info-dialog", () => {
 
   it("renders secondary button when label is provided", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog open secondaryLabel="Cancel"></info-dialog>
+      <info-dialog open secondary-label="Cancel"></info-dialog>
     `);
 
     const secondaryButton = el.shadowRoot!.querySelector(
@@ -122,7 +122,7 @@ describe("info-dialog", () => {
 
   it("dispatches dialog-secondary event when secondary button is clicked", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog open secondaryLabel="Cancel"></info-dialog>
+      <info-dialog open secondary-label="Cancel"></info-dialog>
     `);
 
     const secondaryButton = el.shadowRoot!.querySelector(
@@ -151,7 +151,7 @@ describe("info-dialog", () => {
 
   it("closes dialog when secondary button is clicked", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog open secondaryLabel="Cancel"></info-dialog>
+      <info-dialog open secondary-label="Cancel"></info-dialog>
     `);
 
     const secondaryButton = el.shadowRoot!.querySelector(
@@ -211,7 +211,7 @@ describe("info-dialog", () => {
 
   it("fires dialog-secondary exactly once when the secondary action is used", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog open secondaryLabel="Go back"></info-dialog>
+      <info-dialog open secondary-label="Go back"></info-dialog>
     `);
 
     let secondaryCount = 0;
@@ -320,7 +320,7 @@ describe("info-dialog", () => {
 
   it("stores primaryLabel property", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog primaryLabel="Confirm"></info-dialog>
+      <info-dialog primary-label="Confirm"></info-dialog>
     `);
 
     expect(el.primaryLabel).to.equal("Confirm");
@@ -328,7 +328,7 @@ describe("info-dialog", () => {
 
   it("stores secondaryLabel property", async () => {
     const el = await fixture<InfoDialog>(html`
-      <info-dialog secondaryLabel="Dismiss"></info-dialog>
+      <info-dialog secondary-label="Dismiss"></info-dialog>
     `);
 
     expect(el.secondaryLabel).to.equal("Dismiss");

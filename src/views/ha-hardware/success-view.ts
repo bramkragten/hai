@@ -82,7 +82,7 @@ export class HaHardwareSuccessView extends LitElement {
           href=${guide}
           target="_blank"
           rel="noopener noreferrer"
-          @click=${(event: Event) => openExternalLink(event, guide)}
+          @click=${openExternalLink}
           >${localize("views.ha_hardware.success_view.full_instructions", {
             device: haHardwareName(hardware),
           })}</a

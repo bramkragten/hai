@@ -89,19 +89,19 @@ export class WizardShell extends LitElement {
   @state()
   private _wizardState: WizardState = wizardState.getState();
 
-  @property({ type: String })
+  @property({ type: String, attribute: "next-label" })
   nextLabel = localize("common.next");
 
-  @property({ type: Boolean })
+  @property({ type: Boolean, attribute: "next-disabled" })
   nextDisabled = false;
 
-  @property({ type: Boolean })
+  @property({ type: Boolean, attribute: "hide-back" })
   hideBack = false;
 
-  @property({ type: Boolean })
+  @property({ type: Boolean, attribute: "hide-next" })
   hideNext = false;
 
-  @property({ type: Boolean })
+  @property({ type: Boolean, attribute: "hide-footer" })
   hideFooter = false;
 
   private _unsubscribe?: () => void;

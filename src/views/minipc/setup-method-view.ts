@@ -96,8 +96,8 @@ export class MiniPCSetupMethodView extends LitElement {
         message=${localize(
           "views.minipc.setup_method_view.creating_bootable_usb_drives_is_not_supported_by_this_installer_however_we_"
         )}
-        primaryLabel=${localize("common.view_instructions")}
-        secondaryLabel=${localize("common.go_back")}
+        primary-label=${localize("common.view_instructions")}
+        secondary-label=${localize("common.go_back")}
         @dialog-primary=${this._onOpenDocs}
         @dialog-secondary=${this._onCloseDialog}
       ></info-dialog>

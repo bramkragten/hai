@@ -323,21 +323,25 @@ export class InstallProgress extends LitElement {
 
   @property({ attribute: false }) stages: InstallStage[] = [];
   @property() stage = "downloading";
-  @property() stageTitle = localize(
+  @property({ attribute: "stage-title" }) stageTitle = localize(
     "views.proxmox.proxmox_progress_view.downloading"
   );
   @property() description = localize(
     "views.proxmox.proxmox_progress_view.installing_home_assistant"
   );
   @property({ type: Number }) progress = 0;
-  @property({ type: Number }) bytesProcessed = 0;
-  @property({ type: Number }) totalBytes = 0;
-  @property({ type: Number }) stageStartTime: number | null = null;
-  @property({ type: Number }) stageStartBytes = 0;
+  @property({ type: Number, attribute: "bytes-processed" }) bytesProcessed = 0;
+  @property({ type: Number, attribute: "total-bytes" }) totalBytes = 0;
+  @property({ type: Number, attribute: "stage-start-time" })
+  stageStartTime: number | null = null;
+  @property({ type: Number, attribute: "stage-start-bytes" })
+  stageStartBytes = 0;
   @property({ type: Boolean }) indeterminate = false;
   @property({ type: Boolean }) measurable = true;
-  @property({ type: Boolean }) showUnknownBytes = false;
-  @property({ type: Boolean }) hideEmptyDetails = false;
+  @property({ type: Boolean, attribute: "show-unknown-bytes" })
+  showUnknownBytes = false;
+  @property({ type: Boolean, attribute: "hide-empty-details" })
+  hideEmptyDetails = false;
   @property({ attribute: false }) error: string | null = null;
 
   render() {

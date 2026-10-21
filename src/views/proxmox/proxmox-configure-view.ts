@@ -895,6 +895,18 @@ export class ProxmoxConfigureView extends LitElement {
     });
   }
 
+  // The sliders step through option indexes, so they show the option there
+  private _formatCoresAt = (index: number) =>
+    localize("views.proxmox.proxmox_configure_view.value_cores", {
+      value0: this._getCoreOptions()[index],
+    });
+
+  private _formatMemoryAt = (index: number) =>
+    this._formatMemory(this._getMemoryOptions()[index]);
+
+  private _formatDiskSizeAt = (index: number) =>
+    this._formatDiskSize(this._getDiskSizeOptions()[index]);
+
   private _getCpuDescription(): string {
     if (this._cpuCores <= 2) {
       return localize(
@@ -1125,10 +1137,7 @@ export class ProxmoxConfigureView extends LitElement {
               )}
             </wa-button>
           </div>
-          <a
-            href=${DIRECTORY_STORAGE_DOCS}
-            @click=${(event: Event) =>
-              openExternalLink(event, DIRECTORY_STORAGE_DOCS)}
+          <a href=${DIRECTORY_STORAGE_DOCS} @click=${openExternalLink}
             >${localize("proxmox.directory_storage_documentation")}</a
           >
         </div>
@@ -1142,10 +1151,10 @@ export class ProxmoxConfigureView extends LitElement {
           "views.proxmox.proxmox_configure_view.enable_import_on_storage_message",
           { storage: this._importStorage }
         )}
-        primaryLabel=${localize(
+        primary-label=${localize(
           "views.proxmox.proxmox_configure_view.enable_import"
         )}
-        secondaryLabel=${localize(
+        secondary-label=${localize(
           "views.proxmox.proxmox_configure_view.not_now"
         )}
         @dialog-primary=${this._enableImport}
@@ -1421,10 +1430,7 @@ export class ProxmoxConfigureView extends LitElement {
               step="1"
               .value=${coreIndex >= 0 ? coreIndex : 1}
               @input=${this._onCoresChange}
-              .valueFormatter=${(index: number) =>
-                localize("views.proxmox.proxmox_configure_view.value_cores", {
-                  value0: coreOptions[index],
-                })}
+              .valueFormatter=${this._formatCoresAt}
               ><div slot="label" class="setting-header">
                 <span class="setting-label"
                   >${localize(
@@ -1454,8 +1460,7 @@ export class ProxmoxConfigureView extends LitElement {
               step="1"
               .value=${memoryIndex >= 0 ? memoryIndex : 1}
               @input=${this._onMemoryChange}
-              .valueFormatter=${(index: number) =>
-                this._formatMemory(memoryOptions[index])}
+              .valueFormatter=${this._formatMemoryAt}
               ><div slot="label" class="setting-header">
                 <span class="setting-label"
                   >${localize(
@@ -1482,8 +1487,7 @@ export class ProxmoxConfigureView extends LitElement {
               step="1"
               .value=${diskIndex >= 0 ? diskIndex : 0}
               @input=${this._onDiskSizeChange}
-              .valueFormatter=${(index: number) =>
-                this._formatDiskSize(diskSizeOptions[index])}
+              .valueFormatter=${this._formatDiskSizeAt}
               ><div slot="label" class="setting-header">
                 <span class="setting-label"
                   >${localize(

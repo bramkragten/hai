@@ -75,14 +75,14 @@ export class InfoDialog extends LitElement {
   @property({ type: String })
   message = "";
 
-  @property({ type: String })
+  @property({ type: String, attribute: "primary-label" })
   primaryLabel = localize("components.info_dialog.ok");
 
-  @property({ type: String })
+  @property({ type: String, attribute: "secondary-label" })
   secondaryLabel = "";
 
   /** "danger" when the primary button does something that can't be undone. */
-  @property({ type: String })
+  @property({ type: String, attribute: "primary-variant" })
   primaryVariant: "brand" | "danger" = "brand";
 
   render() {
