@@ -1,11 +1,13 @@
 //! Host system queries and Home Assistant reachability checks.
 //!
 //! Used by the VM flows to size a new VM and to poll a freshly started
-//! Home Assistant instance.
+//! Home Assistant instance, and Supervisor's progress installing it.
 
 use crate::error::Result;
-use crate::types::SystemInfo;
+use crate::types::{HaSetupProblem, HaSetupStatus, SystemInfo};
 use crate::{Backend, HostBackend};
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use std::net::Ipv4Addr;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -91,13 +93,132 @@ static HA_CLIENT: LazyLock<Option<reqwest::Client>> = LazyLock::new(|| {
 });
 
 async fn get_status(ip: &str, path: &str) -> Option<reqwest::StatusCode> {
+    Some(get(ip, path).await?.status())
+}
+
+async fn get(ip: &str, path: &str) -> Option<reqwest::Response> {
     // Never probe an empty host: in `http:///manifest.json` the path would be read as the host.
     if ip.trim().is_empty() {
         return None;
     }
     let client = HA_CLIENT.as_ref()?;
-    let response = client.get(format!("http://{ip}{path}")).send().await.ok()?;
-    Some(response.status())
+    client.get(format!("http://{ip}{path}")).send().await.ok()
+}
+
+/// The Supervisor job that downloads and installs Home Assistant Core.
+const CORE_INSTALL_JOB: &str = "home_assistant_core_install";
+
+/// The `data` of a successful Supervisor API reply.
+#[derive(Deserialize)]
+struct SupervisorReply<T> {
+    data: T,
+}
+
+#[derive(Deserialize)]
+struct JobsInfo {
+    jobs: Vec<Job>,
+}
+
+#[derive(Deserialize)]
+struct Job {
+    name: String,
+    progress: f64,
+}
+
+#[derive(Deserialize)]
+struct NetworkInfo {
+    host_internet: Option<bool>,
+    supervisor_internet: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct ResolutionInfo {
+    issues: Vec<Issue>,
+}
+
+#[derive(Deserialize)]
+struct Issue {
+    #[serde(rename = "type")]
+    kind: IssueType,
+}
+
+/// The Supervisor issues that can hold up installing Core.
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum IssueType {
+    DnsServerFailed,
+    NtpSyncFailed,
+    FreeSpace,
+    DockerRatelimit,
+    UpdateFailed,
+    FatalError,
+    #[serde(other)]
+    Other,
+}
+
+impl IssueType {
+    fn problem(self) -> Option<HaSetupProblem> {
+        Some(match self {
+            Self::DnsServerFailed => HaSetupProblem::DnsServerFailed,
+            Self::NtpSyncFailed => HaSetupProblem::NtpSyncFailed,
+            Self::FreeSpace => HaSetupProblem::FreeSpace,
+            Self::DockerRatelimit => HaSetupProblem::DockerRatelimit,
+            Self::UpdateFailed => HaSetupProblem::UpdateFailed,
+            Self::FatalError => HaSetupProblem::FatalError,
+            Self::Other => return None,
+        })
+    }
+}
+
+/// A Supervisor API reply, as the landing page passes it on.
+async fn supervisor_data<T: DeserializeOwned>(ip: &str, path: &str) -> Option<T> {
+    let response = get(ip, &format!("/supervisor-api{path}")).await?;
+    if !response.status().is_success() {
+        return None;
+    }
+    Some(response.json::<SupervisorReply<T>>().await.ok()?.data)
+}
+
+/// What Supervisor reports while it installs Core, through the paths of the
+/// Supervisor API that the landing page passes on without authentication.
+/// They are gone once Core runs, so `None` is expected then.
+async fn ha_setup_status(ip: &str) -> Option<HaSetupStatus> {
+    let (jobs, network, resolution) = tokio::join!(
+        supervisor_data::<JobsInfo>(ip, "/jobs/info"),
+        supervisor_data::<NetworkInfo>(ip, "/network/info"),
+        supervisor_data::<ResolutionInfo>(ip, "/resolution/info"),
+    );
+    if jobs.is_none() && network.is_none() && resolution.is_none() {
+        return None;
+    }
+
+    let core_install_progress = jobs.and_then(|info| {
+        info.jobs
+            .into_iter()
+            .find(|job| job.name == CORE_INSTALL_JOB)
+            .map(|job| job.progress.clamp(0.0, 100.0))
+    });
+    // Unknown connectivity is not a problem: Supervisor checks it after starting
+    let offline = network.is_some_and(|info| {
+        info.host_internet == Some(false) || info.supervisor_internet == Some(false)
+    });
+    let mut problems: Vec<_> = offline
+        .then_some(HaSetupProblem::NoInternet)
+        .into_iter()
+        .chain(
+            resolution
+                .into_iter()
+                .flat_map(|info| info.issues)
+                .filter_map(|issue| issue.kind.problem()),
+        )
+        .collect();
+    problems.sort();
+    problems.dedup();
+
+    Some(HaSetupStatus {
+        core_install_progress,
+        problems,
+    })
 }
 
 impl HostBackend for Backend {
@@ -111,6 +232,10 @@ impl HostBackend for Backend {
 
     async fn check_ha_updated(&self, ip: &str) -> bool {
         check_ha_updated(ip).await
+    }
+
+    async fn ha_setup_status(&self, ip: &str) -> Option<HaSetupStatus> {
+        ha_setup_status(ip).await
     }
 }
 
@@ -204,6 +329,128 @@ mod tests {
 
         assert!(!check_ha_updated(&server.host_with_port()).await);
         mock.assert_async().await;
+    }
+
+    /// Answer a landing page path with a Supervisor reply holding `data`.
+    async fn supervisor_reply(
+        server: &mut mockito::ServerGuard,
+        path: &str,
+        data: &str,
+    ) -> mockito::Mock {
+        server
+            .mock("GET", format!("/supervisor-api{path}").as_str())
+            .with_header("content-type", "application/json")
+            .with_body(format!(r#"{{"result":"ok","data":{data}}}"#))
+            .create_async()
+            .await
+    }
+
+    const ONLINE: &str =
+        r#"{"interfaces":[],"docker":{},"host_internet":true,"supervisor_internet":true}"#;
+
+    #[tokio::test]
+    async fn test_ha_setup_status_reports_the_core_download() {
+        let mut server = Server::new_async().await;
+        supervisor_reply(
+            &mut server,
+            "/jobs/info",
+            r#"{"ignore_conditions":[],"jobs":[
+                {"name":"supervisor_update","progress":80,"done":false},
+                {"name":"home_assistant_core_install","progress":42.5,"done":false,
+                 "stage":null,"errors":[],"child_jobs":[]}]}"#,
+        )
+        .await;
+        supervisor_reply(&mut server, "/network/info", ONLINE).await;
+        supervisor_reply(
+            &mut server,
+            "/resolution/info",
+            r#"{"unsupported":[],"unhealthy":[],"suggestions":[],"issues":[],"checks":[]}"#,
+        )
+        .await;
+
+        assert_eq!(
+            ha_setup_status(&server.host_with_port()).await,
+            Some(HaSetupStatus {
+                core_install_progress: Some(42.5),
+                problems: vec![],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ha_setup_status_reports_problems_most_fundamental_first() {
+        let mut server = Server::new_async().await;
+        supervisor_reply(
+            &mut server,
+            "/jobs/info",
+            r#"{"ignore_conditions":[],"jobs":[]}"#,
+        )
+        .await;
+        supervisor_reply(
+            &mut server,
+            "/network/info",
+            r#"{"host_internet":true,"supervisor_internet":false}"#,
+        )
+        .await;
+        // Issues that cannot hold up the install are left out
+        supervisor_reply(
+            &mut server,
+            "/resolution/info",
+            r#"{"issues":[
+                {"type":"update_failed","context":"supervisor","reference":null,"uuid":"a"},
+                {"type":"multiple_data_disks","context":"system","reference":"sda","uuid":"b"},
+                {"type":"dns_server_failed","context":"dns_server","reference":"dns://192.0.2.1","uuid":"c"},
+                {"type":"update_failed","context":"core","reference":null,"uuid":"d"}]}"#,
+        )
+        .await;
+
+        assert_eq!(
+            ha_setup_status(&server.host_with_port()).await,
+            Some(HaSetupStatus {
+                core_install_progress: None,
+                problems: vec![
+                    HaSetupProblem::NoInternet,
+                    HaSetupProblem::DnsServerFailed,
+                    HaSetupProblem::UpdateFailed,
+                ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ha_setup_status_uses_what_answers() {
+        let mut server = Server::new_async().await;
+        // Supervisor checks connectivity after starting; until then it is unknown
+        supervisor_reply(
+            &mut server,
+            "/network/info",
+            r#"{"host_internet":null,"supervisor_internet":null}"#,
+        )
+        .await;
+        server
+            .mock("GET", "/supervisor-api/jobs/info")
+            .with_status(502)
+            .create_async()
+            .await;
+        server
+            .mock("GET", "/supervisor-api/resolution/info")
+            .with_status(400)
+            .with_body(r#"{"result":"error","message":"Supervisor is starting"}"#)
+            .create_async()
+            .await;
+
+        assert_eq!(
+            ha_setup_status(&server.host_with_port()).await,
+            Some(HaSetupStatus::default())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ha_setup_status_is_none_without_a_landing_page() {
+        // Once Core runs, the landing page and its Supervisor paths are gone
+        let server = Server::new_async().await;
+        assert_eq!(ha_setup_status(&server.host_with_port()).await, None);
+        assert_eq!(ha_setup_status("").await, None);
     }
 
     #[tokio::test]

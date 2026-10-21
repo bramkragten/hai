@@ -320,6 +320,19 @@ export class InstallProgress extends LitElement {
         left: 30px;
       }
 
+      .warning {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 400px;
+        margin: 0 0 1rem 0;
+        padding: 0.5rem 0 0.5rem 1rem;
+        border-left: 3px solid var(--ha-warning-color, #f5a623);
+        font-size: 0.9375rem;
+        line-height: 1.5;
+        color: var(--ha-text-color, #212121);
+        overflow-wrap: anywhere;
+      }
+
       .address {
         font-size: 0.9375rem;
         color: var(--ha-secondary-text-color, #727272);
@@ -370,6 +383,8 @@ export class InstallProgress extends LitElement {
   @property({ type: Boolean, attribute: "hide-empty-details" })
   hideEmptyDetails = false;
   @property({ attribute: false }) error: string | null = null;
+  /** A problem holding up the stage, while the install goes on */
+  @property({ attribute: false }) warning: string | null = null;
   /** Where Home Assistant is being checked, once the VM has an address */
   @property({ attribute: false }) address: string | null = null;
   /** Leaving no longer stops anything, so the window may close */
@@ -500,6 +515,9 @@ export class InstallProgress extends LitElement {
             `
           : ""}
       </div>
+      ${this.warning
+        ? html`<p class="warning" role="status">${this.warning}</p>`
+        : nothing}
       ${this.address
         ? html`<p class="address">
             ${localizeContent("components.install_progress.checking_address", {

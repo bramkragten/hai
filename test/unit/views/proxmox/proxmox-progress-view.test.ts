@@ -1,4 +1,10 @@
-import { expect, fixtureSync, html, oneEvent } from "@open-wc/testing";
+import {
+  expect,
+  fixtureSync,
+  html,
+  oneEvent,
+  waitUntil,
+} from "@open-wc/testing";
 import type {
   FlashProgress,
   ProxmoxVmResult,
@@ -335,6 +341,8 @@ describe("proxmox-progress-view", () => {
             // Past the 60-minute deadline from inside the first check
             if (!updated) clockOffset += 61 * 60 * 1000;
             return updated;
+          case "get_ha_setup_status":
+            return null;
         }
         throw new Error(`Unexpected IPC command: ${cmd}`);
       });
@@ -360,6 +368,39 @@ describe("proxmox-progress-view", () => {
     } finally {
       Date.now = realNow;
     }
+  });
+
+  it("shows the Core download and what holds it up while Home Assistant installs", async () => {
+    wizardState.setSelection("proxmoxVmResult", { vm_id: 100, node: "pve" });
+    mockTauriIpc((cmd) => {
+      switch (cmd) {
+        case "proxmox_get_vm_status":
+          return { status: "running", ip_address: "192.168.1.100" };
+        case "check_ha_ready":
+          return true;
+        case "check_ha_updated":
+          return false;
+        case "get_ha_setup_status":
+          return { core_install_progress: 87.6, problems: ["free_space"] };
+      }
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+    const el = mount();
+    await el.updateComplete;
+    const layout = el.shadowRoot!.querySelector("install-progress")!;
+
+    await waitUntil(
+      () => layout.stage === "updating" && layout.progress === 88,
+      "never showed the Core download"
+    );
+    expect(layout.measurable).to.be.true;
+    expect(layout.indeterminate).to.be.false;
+    await layout.updateComplete;
+    expect(progressOf(el).querySelector(".warning")!.textContent).to.contain(
+      "running out of disk space"
+    );
+    expect(el.hasError).to.be.false;
+    el.remove();
   });
 
   // Asking again with the same session or the same missing permission fails

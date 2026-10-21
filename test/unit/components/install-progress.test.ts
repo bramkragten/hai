@@ -56,6 +56,25 @@ describe("install-progress", () => {
     }
   });
 
+  it("shows a problem as a warning, until an error replaces the progress", async () => {
+    const el = await fixture<InstallProgress>(
+      html`<install-progress stage="updating"></install-progress>`
+    );
+    expect(el.shadowRoot!.querySelector(".warning")).to.be.null;
+
+    el.warning = "Home Assistant can't reach the internet.";
+    await el.updateComplete;
+    const warning = el.shadowRoot!.querySelector(".warning")!;
+    expect(warning.textContent).to.equal(
+      "Home Assistant can't reach the internet."
+    );
+    expect(warning.getAttribute("role")).to.equal("status");
+
+    el.error = "The installation made no progress for 10 minutes.";
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector(".warning")).to.be.null;
+  });
+
   it("asks to keep the window open only while leaving would stop something", async () => {
     const el = await fixture<InstallProgress>(
       html`<install-progress stage="creating_vm"></install-progress>`

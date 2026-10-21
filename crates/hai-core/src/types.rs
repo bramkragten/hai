@@ -488,6 +488,40 @@ pub struct VmStatusInfo {
     pub ip_address: Option<String>,
 }
 
+/// What Supervisor reports, through the Home Assistant OS landing page, while
+/// it installs Home Assistant Core
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct HaSetupStatus {
+    /// Progress (0-100) of the Core download, while Supervisor runs it.
+    pub core_install_progress: Option<f64>,
+    /// Problems that can hold up the install, most fundamental first.
+    pub problems: Vec<HaSetupProblem>,
+}
+
+/// A problem Supervisor reports that can keep Home Assistant Core from installing
+///
+/// Declared most fundamental first: without internet, every download fails.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum HaSetupProblem {
+    /// The host or Supervisor cannot reach the internet.
+    NoInternet,
+    /// The DNS server does not resolve names.
+    DnsServerFailed,
+    /// The clock could not be set, which fails TLS connections.
+    NtpSyncFailed,
+    /// The data disk is (almost) full.
+    FreeSpace,
+    /// The container registry limits the pulls.
+    DockerRatelimit,
+    /// Downloading an update failed.
+    UpdateFailed,
+    /// Home Assistant Core failed to start.
+    FatalError,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

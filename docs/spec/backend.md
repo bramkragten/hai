@@ -322,8 +322,22 @@ pub trait HostBackend {
 
     /// Whether Home Assistant at `ip` has finished starting up (serves manifest.json)
     async fn check_ha_updated(&self, ip: &str) -> bool;
+
+    /// What Supervisor reports while it installs Core: the Core download's
+    /// progress and problems that hold it up (`None` without a landing page)
+    async fn ha_setup_status(&self, ip: &str) -> Option<HaSetupStatus>;
 }
 ```
+
+Until Core runs, the Home Assistant OS landing page passes a few Supervisor
+API paths on without authentication. `ha_setup_status` reads three of them:
+`/supervisor-api/jobs/info` (the `home_assistant_core_install` job's
+progress), `/supervisor-api/network/info` (`host_internet` and
+`supervisor_internet`), and `/supervisor-api/resolution/info` (issues that
+can hold up the install). The VM flows show the progress and the most
+fundamental problem while they wait for `manifest.json`, and end the wait
+when a problem lasts 10 minutes without the download moving. Diagnostics
+record the status as fixed categories only, never Supervisor's logs or text.
 
 ---
 

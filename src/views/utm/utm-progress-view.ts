@@ -18,7 +18,6 @@ import {
   startUtmVm,
   getUtmVmStatus,
   checkHaReady,
-  checkHaUpdated,
   type VmStatusInfo,
 } from "../../api/commands.js";
 import type { FlashProgress, UtmVmConfig } from "../../api/types.js";
@@ -34,6 +33,11 @@ import {
   pollUntil,
   throwIfCancelled,
 } from "../../utils/polling.js";
+import {
+  haSetupProblemMessage,
+  waitForHaSetup,
+  type HaSetupProgress,
+} from "../../utils/ha-setup.js";
 import "../../components/install-progress.js";
 
 type InstallStage =
@@ -135,6 +139,10 @@ export class UtmProgressView extends LitElement {
   @state()
   private _error: InstallerError | null = null;
 
+  /** What Supervisor reports while it installs Home Assistant */
+  @state()
+  private _setup: HaSetupProgress = { progress: null, problem: null };
+
   @state()
   private _isInstalling = false;
 
@@ -205,6 +213,8 @@ export class UtmProgressView extends LitElement {
 
   /** Check if a stage has measurable progress (0-100%) */
   private _hasMeasurableProgress(stage: InstallStage): boolean {
+    // Once Supervisor reports downloading Core
+    if (stage === "updating") return this._setup.progress !== null;
     return (
       MEASURABLE_STAGES.includes(stage) &&
       (stage === "downloading" || this._totalBytes > 0)
@@ -485,6 +495,7 @@ export class UtmProgressView extends LitElement {
     this._stageStartTime = null;
     this._bytesProcessed = 0;
     this._totalBytes = 0;
+    this._setup = { progress: null, problem: null };
   }
 
   /** Download the HAOS qcow2 image, reporting download and extract progress */
@@ -585,6 +596,9 @@ export class UtmProgressView extends LitElement {
         .measurable=${this._hasMeasurableProgress(stage)}
         .hideEmptyDetails=${true}
         .error=${this._error?.message ?? null}
+        .warning=${stage === "updating" && this._setup.problem
+          ? haSetupProblemMessage(this._setup.problem)
+          : null}
         .address=${this._checkedAddress(stage)}
         .leavable=${this.leavable}
       ></install-progress>
@@ -703,25 +717,28 @@ export class UtmProgressView extends LitElement {
   }
 
   /**
-   * Wait for Home Assistant to finish updating to the latest version.
-   * This checks for the manifest.json endpoint which becomes available
-   * after the initial setup and updates are complete.
-   * Polls every 2 seconds for up to 1 hour.
+   * Wait for Home Assistant to finish updating to the latest version, which
+   * is when it starts serving `manifest.json`. Polls every 2 seconds for up
+   * to 1 hour, showing the download and problems Supervisor reports.
    *
    * As with the readiness check, a timeout throws instead of quietly
-   * reporting success.
+   * reporting success. So does a problem that holds up the install too long.
    */
   private async _waitForHaUpdated(
     ipAddress: string,
     signal: AbortSignal
   ): Promise<void> {
-    await pollUntil(async () => (await checkHaUpdated(ipAddress)) || null, {
+    await waitForHaSetup(ipAddress, {
       interval: POLL_INTERVAL_MS,
       timeout: HA_UPDATED_TIMEOUT_MS,
       signal,
       timeoutMessage: localize("utm.update_timeout", {
         address: `http://${ipAddress}`,
       }),
+      onProgress: (setup) => {
+        this._setup = setup;
+        this._progress = Math.round(setup.progress ?? 0);
+      },
     });
   }
 }

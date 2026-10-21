@@ -14,9 +14,10 @@ use hai_core::download::TemporaryImage;
 use hai_core::keep_awake::KeepAwake;
 use hai_core::{
     BlockDevice, DeviceBackend, DeviceManifest, ExpectedDevice, FlashProgress, FlashRequest,
-    FlashResult, FlashStage, HaosRelease, HostBackend, ImageFormat, ProgressCallback,
-    ProxmoxBackend, ProxmoxBridge, ProxmoxCredentials, ProxmoxNode, ProxmoxSession, ProxmoxStorage,
-    ProxmoxVmConfig, ProxmoxVmResult, ReleaseSource, SystemInfo, UtmBackend, VmStatusInfo,
+    FlashResult, FlashStage, HaSetupStatus, HaosRelease, HostBackend, ImageFormat,
+    ProgressCallback, ProxmoxBackend, ProxmoxBridge, ProxmoxCredentials, ProxmoxNode,
+    ProxmoxSession, ProxmoxStorage, ProxmoxVmConfig, ProxmoxVmResult, ReleaseSource, SystemInfo,
+    UtmBackend, VmStatusInfo,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -645,6 +646,17 @@ pub async fn check_ha_ready(ip_address: String) -> bool {
 #[tauri::command]
 pub async fn check_ha_updated(ip_address: String) -> bool {
     Backend.check_ha_updated(&ip_address).await
+}
+
+/// What Supervisor reports while it installs Home Assistant, or `None` when
+/// no landing page answers
+#[tauri::command]
+pub async fn get_ha_setup_status(ip_address: String) -> Option<HaSetupStatus> {
+    let status = Backend.ha_setup_status(&ip_address).await;
+    if let Some(status) = &status {
+        crate::diagnostics::setup_status(status);
+    }
+    status
 }
 
 // =============================================================================

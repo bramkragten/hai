@@ -56,6 +56,37 @@ pub fn warning(code: &'static str) {
     record(log::Level::Warn, format!("warning {code}"));
 }
 
+/// The setup status last recorded, as the install polls it every few seconds.
+static LAST_SETUP_STATUS: Mutex<Option<String>> = Mutex::new(None);
+
+/// Record what Supervisor reports while it installs Home Assistant, when that
+/// changes. Only the fixed problem kinds and the progress in quarters reach
+/// the log, never Supervisor's own text.
+pub fn setup_status(status: &hai_core::HaSetupStatus) {
+    let progress = status.core_install_progress.map_or_else(
+        || "none".to_owned(),
+        |progress| format!("{}%", (progress / 25.0).floor() as u8 * 25),
+    );
+    let line = format!(
+        "supervisor core_install={progress} problems={:?}",
+        status.problems
+    );
+    if let Ok(mut last) = LAST_SETUP_STATUS.lock() {
+        if last.as_ref() == Some(&line) {
+            return;
+        }
+        *last = Some(line.clone());
+    }
+    record(
+        if status.problems.is_empty() {
+            log::Level::Info
+        } else {
+            log::Level::Warn
+        },
+        line,
+    );
+}
+
 /// Preserve a useful failure category without persisting arbitrary error text.
 pub fn error_category(error: &str) -> &'static str {
     let error = error.to_ascii_lowercase();
@@ -243,6 +274,15 @@ pub enum ErrorCategory {
     TemporaryImageUnavailable,
     OperationInProgress,
     Internal,
+    /// A problem Supervisor reported held up installing Home Assistant: the
+    /// frontend's `home_assistant_` codes, one per `HaSetupProblem`.
+    HomeAssistantNoInternet,
+    HomeAssistantDnsServerFailed,
+    HomeAssistantNtpSyncFailed,
+    HomeAssistantFreeSpace,
+    HomeAssistantDockerRatelimit,
+    HomeAssistantUpdateFailed,
+    HomeAssistantFatalError,
     /// Any other value. A code without a category is still logged, as this;
     /// the value itself never reaches the log.
     #[serde(other)]
@@ -368,6 +408,65 @@ mod tests {
             "{tail}"
         );
         assert!(!tail.contains("private-volume"), "{tail}");
+    }
+
+    #[test]
+    // A UTM command test clears the shared tail, which would drop these lines
+    #[serial_test::serial]
+    fn setup_status_records_its_changes_as_fixed_categories() {
+        use hai_core::{HaSetupProblem, HaSetupStatus};
+
+        let status = |progress, problems: &[HaSetupProblem]| HaSetupStatus {
+            core_install_progress: progress,
+            problems: problems.to_vec(),
+        };
+
+        setup_status(&status(None, &[HaSetupProblem::UpdateFailed]));
+        // The same again, or a download step within its quarter, adds nothing
+        setup_status(&status(None, &[HaSetupProblem::UpdateFailed]));
+        setup_status(&status(Some(30.0), &[]));
+        setup_status(&status(Some(49.9), &[]));
+        setup_status(&status(Some(100.0), &[]));
+
+        let lines: Vec<_> = test_log_tail()
+            .into_iter()
+            .filter(|line| line.contains(" supervisor "))
+            .map(|line| line.split_once(' ').unwrap().1.to_owned())
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "supervisor core_install=none problems=[UpdateFailed]",
+                "supervisor core_install=25% problems=[]",
+                "supervisor core_install=100% problems=[]",
+            ]
+        );
+    }
+
+    #[test]
+    fn every_setup_problem_has_a_failure_category() {
+        use hai_core::HaSetupProblem::*;
+
+        // The frontend ends a wait that a problem holds up with its code
+        for problem in [
+            NoInternet,
+            DnsServerFailed,
+            NtpSyncFailed,
+            FreeSpace,
+            DockerRatelimit,
+            UpdateFailed,
+            FatalError,
+        ] {
+            let code = format!(
+                "home_assistant_{}",
+                serde_json::to_value(problem).unwrap().as_str().unwrap()
+            );
+            let category = serde_json::from_value::<ErrorCategory>(code.clone().into()).unwrap();
+            assert!(
+                !matches!(category, ErrorCategory::Unrecognized),
+                "{code} has no category"
+            );
+        }
     }
 
     #[test]

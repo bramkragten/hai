@@ -13,7 +13,6 @@ import { wizardState, type WizardState } from "../../state/wizard-state.js";
 import {
   cancelVmInstall,
   checkHaReady,
-  checkHaUpdated,
   proxmoxCreateVm,
   proxmoxGetVmStatus,
 } from "../../api/commands.js";
@@ -31,6 +30,11 @@ import {
   pollUntil,
   throwIfCancelled,
 } from "../../utils/polling.js";
+import {
+  haSetupProblemMessage,
+  waitForHaSetup,
+  type HaSetupProgress,
+} from "../../utils/ha-setup.js";
 import "../../components/install-progress.js";
 
 /** The stages `proxmoxCreateVm` reports, in order */
@@ -141,6 +145,10 @@ export class ProxmoxProgressView extends LitElement {
 
   @state()
   private _error: InstallerError | null = null;
+
+  /** What Supervisor reports while it installs Home Assistant */
+  @state()
+  private _setup: HaSetupProgress = { progress: null, problem: null };
 
   @state()
   private _isInstalling = false;
@@ -439,6 +447,7 @@ export class ProxmoxProgressView extends LitElement {
     this._stageStartTime = null;
     this._bytesProcessed = 0;
     this._totalBytes = 0;
+    this._setup = { progress: null, problem: null };
   }
 
   /**
@@ -489,13 +498,14 @@ export class ProxmoxProgressView extends LitElement {
   /**
    * Wait for Home Assistant to finish updating to the latest version, which
    * is when it starts serving `manifest.json`. Polls every 2 seconds for up
-   * to 1 hour.
+   * to 1 hour, showing the download and problems Supervisor reports. A
+   * problem that holds up the install too long ends the wait.
    */
   private async _waitForHaUpdated(
     ipAddress: string,
     signal: AbortSignal
   ): Promise<void> {
-    await pollUntil(async () => (await checkHaUpdated(ipAddress)) || null, {
+    await waitForHaSetup(ipAddress, {
       interval: POLL_INTERVAL_MS,
       timeout: HA_UPDATED_TIMEOUT_MS,
       signal,
@@ -503,6 +513,10 @@ export class ProxmoxProgressView extends LitElement {
         "views.proxmox.proxmox_progress_view.update_timeout",
         { address: `http://${ipAddress}` }
       ),
+      onProgress: (setup) => {
+        this._setup = setup;
+        this._progress = Math.round(setup.progress ?? 0);
+      },
     });
   }
 
@@ -561,6 +575,9 @@ export class ProxmoxProgressView extends LitElement {
         .indeterminate=${this._isIndeterminate(stage)}
         .measurable=${this._hasMeasurableProgress(stage)}
         .error=${this._error?.message ?? null}
+        .warning=${stage === "updating" && this._setup.problem
+          ? haSetupProblemMessage(this._setup.problem)
+          : null}
         .address=${this._checkedAddress(stage)}
         .leavable=${this.leavable}
       ></install-progress>
@@ -577,6 +594,8 @@ export class ProxmoxProgressView extends LitElement {
 
   /** Check if the current stage has measurable progress */
   private _hasMeasurableProgress(stage: InstallStage): boolean {
+    // Once Supervisor reports downloading Core
+    if (stage === "updating") return this._setup.progress !== null;
     return (
       MEASURABLE_STAGES.includes(stage) &&
       (stage === "downloading" || this._totalBytes > 0)
