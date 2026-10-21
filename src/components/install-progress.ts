@@ -320,11 +320,16 @@ export class InstallProgress extends LitElement {
         left: 30px;
       }
 
+      /* Always there, as a live region, but takes no room while empty */
       .warning {
         box-sizing: border-box;
         width: 100%;
         max-width: 400px;
-        margin: 0 0 1rem 0;
+        margin: 0;
+      }
+
+      .warning.shown {
+        margin-bottom: 1rem;
         padding: 0.5rem 0 0.5rem 1rem;
         border-left: 3px solid var(--ha-warning-color, #f5a623);
         font-size: 0.9375rem;
@@ -414,6 +419,8 @@ export class InstallProgress extends LitElement {
       `;
     }
     const hasBubble = this.stage !== "complete" && this.stage !== "error";
+    // Its live region is mounted empty first, so the first warning is announced
+    const warning = this._status.ready ? this.warning : null;
     const currentIndex = this.stages.findIndex(
       (stage) => stage.id === this.stage
     );
@@ -515,9 +522,9 @@ export class InstallProgress extends LitElement {
             `
           : ""}
       </div>
-      ${this.warning
-        ? html`<p class="warning" role="status">${this.warning}</p>`
-        : nothing}
+      <p class="warning ${warning ? "shown" : ""}" role="status">
+        ${warning ?? nothing}
+      </p>
       ${this.address
         ? html`<p class="address">
             ${localizeContent("components.install_progress.checking_address", {

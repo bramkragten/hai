@@ -1,4 +1,10 @@
-import { expect, fixture, fixtureSync, html } from "@open-wc/testing";
+import {
+  expect,
+  fixture,
+  fixtureSync,
+  html,
+  waitUntil,
+} from "@open-wc/testing";
 import type { InstallProgress } from "../../../src/components/install-progress.js";
 import "../../../src/components/install-progress.js";
 import { captureOpenedUrls, restoreTauriIpc, settle } from "../tauri-ipc.js";
@@ -56,20 +62,47 @@ describe("install-progress", () => {
     }
   });
 
-  it("shows a problem as a warning, until an error replaces the progress", async () => {
-    const el = await fixture<InstallProgress>(
-      html`<install-progress stage="updating"></install-progress>`
+  it("announces a problem in a warning region that is mounted empty first", async () => {
+    // Set from the start, as a view could
+    const el = fixtureSync<InstallProgress>(
+      html`<install-progress
+        stage="updating"
+        .warning=${"Home Assistant can't reach the internet."}
+      ></install-progress>`
     );
-    expect(el.shadowRoot!.querySelector(".warning")).to.be.null;
-
-    el.warning = "Home Assistant can't reach the internet.";
     await el.updateComplete;
-    const warning = el.shadowRoot!.querySelector(".warning")!;
-    expect(warning.textContent).to.equal(
+    const region = el.shadowRoot!.querySelector(".warning")!;
+    expect(region.getAttribute("role")).to.equal("status");
+    expect(region.textContent?.trim()).to.equal("");
+    expect(region.classList.contains("shown")).to.be.false;
+    // Empty, it takes no room between the progress and the address
+    expect(region.getBoundingClientRect().height).to.equal(0);
+
+    // The same region gets the text, once screen readers watch it
+    await waitUntil(
+      () => region.textContent?.trim() !== "",
+      "the warning never showed",
+      { timeout: 3000 }
+    );
+    expect(el.shadowRoot!.querySelector(".warning")).to.equal(region);
+    expect(region.textContent?.trim()).to.equal(
       "Home Assistant can't reach the internet."
     );
-    expect(warning.getAttribute("role")).to.equal("status");
+    expect(region.classList.contains("shown")).to.be.true;
 
+    el.warning = "Home Assistant couldn't download an update.";
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector(".warning")).to.equal(region);
+    expect(region.textContent?.trim()).to.equal(
+      "Home Assistant couldn't download an update."
+    );
+
+    el.warning = null;
+    await el.updateComplete;
+    expect(region.textContent?.trim()).to.equal("");
+    expect(region.classList.contains("shown")).to.be.false;
+
+    // An error replaces the progress, warning included
     el.error = "The installation made no progress for 10 minutes.";
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector(".warning")).to.be.null;

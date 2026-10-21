@@ -395,9 +395,13 @@ describe("proxmox-progress-view", () => {
     );
     expect(layout.measurable).to.be.true;
     expect(layout.indeterminate).to.be.false;
-    await layout.updateComplete;
-    expect(progressOf(el).querySelector(".warning")!.textContent).to.contain(
-      "running out of disk space"
+    await waitUntil(
+      () =>
+        progressOf(el)
+          .querySelector(".warning")!
+          .textContent!.includes("running out of disk space"),
+      "never showed the problem",
+      { timeout: 3000 }
     );
     expect(el.hasError).to.be.false;
     el.remove();

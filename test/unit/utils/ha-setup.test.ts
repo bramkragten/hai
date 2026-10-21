@@ -145,16 +145,15 @@ describe("ha-setup", () => {
     });
   });
 
-  it("keeps a problem's clock through answers that don't come", async () => {
+  it("keeps a problem's clock running while answers don't come", async () => {
     const reported: HaSetupProgress[] = [];
-    const stuck = status(0, "free_space");
-    // Seen at 6 minutes, unanswered at 12 and 18, still there at 24
-    mockSetup([stuck, null, "rejected", stuck, stuck], 6 * MINUTE);
+    // Seen at 6 minutes, then unanswered at 12 and at 18, when it has lasted 12
+    mockSetup([status(0, "free_space"), null, "rejected", null], 6 * MINUTE);
 
     const error = await stalled(wait(reported));
 
     expect(error.problem).to.equal("free_space");
-    expect(reported).to.have.length(2);
+    expect(reported).to.deep.equal([{ progress: null, problem: "free_space" }]);
   });
 
   it("doesn't count a report without a measurement as moving", async () => {

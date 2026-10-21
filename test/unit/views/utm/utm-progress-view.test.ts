@@ -721,8 +721,13 @@ describe("utm-progress-view", () => {
     await layout.updateComplete;
     const shown = layout.shadowRoot!;
     expect(shown.querySelector(".percentage")!.textContent).to.equal("42%");
-    expect(shown.querySelector(".warning")!.textContent).to.contain(
-      "can't reach the internet"
+    await waitUntil(
+      () =>
+        shown
+          .querySelector(".warning")!
+          .textContent!.includes("can't reach the internet"),
+      "never showed the problem",
+      { timeout: 3000 }
     );
     // A problem alone doesn't end the wait
     expect(el.hasError).to.be.false;

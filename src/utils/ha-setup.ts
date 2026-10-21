@@ -84,13 +84,16 @@ export interface HaSetupWaitOptions {
  *
  * A problem Supervisor reports shows at once, while the wait goes on. One
  * that lasts `HA_SETUP_STALL_MS` without the download moving ends the wait
- * with a `HaSetupStalledError`, rather than an hour-long timeout.
+ * with a `HaSetupStalledError`, rather than an hour-long timeout. Only a
+ * report without it clears it: unanswered requests keep its clock running.
  */
 export async function waitForHaSetup(
   ipAddress: string,
   { interval, timeout, signal, timeoutMessage, onProgress }: HaSetupWaitOptions
 ): Promise<void> {
-  let problemSince: number | null = null;
+  // The last problem reported, and since when
+  let problem: HaSetupProblem | null = null;
+  let problemSince = 0;
   // The download moves when its measured progress changes, also when it
   // starts over. A report without a measurement is not a move.
   let lastProgress: number | undefined;
@@ -103,32 +106,33 @@ export async function waitForHaSetup(
       async () => {
         if (await checkHaUpdated(ipAddress)) return true;
 
-        // No answer is no news: what shows, and its clocks, stay as they are
         const status = await getHaSetupStatus(ipAddress).catch(() => null);
         // A late answer must not reach the view, which may be on a retry by now
         if (ended) return null;
         throwIfCancelled(signal);
-        if (!status) return null;
 
         const now = Date.now();
-        const progress = status.core_install_progress;
-        if (progress !== null && progress !== lastProgress) {
-          lastProgress = progress;
-          movedAt = now;
+        // No answer is no news: what shows stays, and its clocks run on
+        if (status) {
+          const progress = status.core_install_progress;
+          if (progress !== null && progress !== lastProgress) {
+            lastProgress = progress;
+            movedAt = now;
+          }
+          const reported = status.problems[0] ?? null;
+          if (reported && !problem) problemSince = now;
+          problem = reported;
+          // Like the landing page, a download at 0% shows as waiting
+          onProgress({
+            progress: progress !== null && progress > 0 ? progress : null,
+            problem,
+          });
         }
-        const problem = status.problems[0] ?? null;
-        // Like the landing page, a download at 0% shows as waiting
-        onProgress({
-          progress: progress !== null && progress > 0 ? progress : null,
-          problem,
-        });
 
-        if (!problem) {
-          problemSince = null;
-          return null;
-        }
-        problemSince ??= now;
-        if (now - Math.max(problemSince, movedAt) >= HA_SETUP_STALL_MS) {
+        if (
+          problem &&
+          now - Math.max(problemSince, movedAt) >= HA_SETUP_STALL_MS
+        ) {
           throw new HaSetupStalledError(problem, `http://${ipAddress}`);
         }
         return null;
