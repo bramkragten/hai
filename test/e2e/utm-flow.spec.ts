@@ -60,10 +60,32 @@ test.describe("UTM Installation Flow", () => {
   });
 
   test("step 1: shows loading state initially", async ({ page }) => {
+    // Hold the UTM check from here, so the view stays on its loading state
+    await page.evaluate(() => {
+      const testWindow = window as typeof window & {
+        isTauri: boolean;
+        __TAURI_INTERNALS__: { invoke: (cmd: string) => Promise<unknown> };
+      };
+      testWindow.isTauri = true;
+      testWindow.__TAURI_INTERNALS__ = {
+        invoke: (cmd) =>
+          cmd === "check_utm_status"
+            ? new Promise(() => {})
+            : Promise.resolve(cmd === "utm_supported" ? true : undefined),
+      };
+    });
+    const wizardShell = page.locator("wizard-shell");
+    await wizardShell.locator(".footer-left wa-button").click();
+    await page.locator("welcome-view").locator("wa-button").click();
+    await page.locator('option-card[heading="Virtual machine"]').click();
+
     const checkView = page.locator("utm-check-view");
-    // May show loading state briefly
-    // In mock mode, it should resolve quickly
-    await expect(checkView.locator(".status-card")).toBeVisible();
+    await expect(checkView.locator(".status-title")).toHaveText(
+      "Checking for UTM..."
+    );
+    await expect(
+      wizardShell.locator(".footer-right wa-button")
+    ).toHaveJSProperty("disabled", true);
   });
 
   test("step 1: shows UTM status after check completes", async ({ page }) => {

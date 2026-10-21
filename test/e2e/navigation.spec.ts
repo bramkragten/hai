@@ -675,8 +675,10 @@ test.describe("SBC Flashing", () => {
 
   test("step indicator shows Install step as active", async ({ page }) => {
     const stepIndicator = page.locator("step-indicator");
-    // The Install step should be marked as active (bold/current)
-    await expect(stepIndicator).toContainText("Install");
+    // Every step is listed; only the current one is marked
+    await expect(stepIndicator.locator('[aria-current="step"]')).toHaveText(
+      "Install"
+    );
   });
 
   test("progress updates during mock flashing", async ({ page }) => {

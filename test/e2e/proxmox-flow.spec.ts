@@ -103,26 +103,6 @@ test.describe("Proxmox Installation Flow", () => {
     await expect(connectView).toBeVisible();
   });
 
-  test("step 1: connection behavior with credentials", async ({ page }) => {
-    const connectView = page.locator("proxmox-connect-view");
-
-    // Fill with credentials
-    await connectView.locator("#server-url").fill("https://192.168.1.100:8006");
-    await connectView.locator("#username").fill("root@pam");
-    await connectView.locator("#password").fill("testpassword");
-
-    // Click next to trigger connection attempt
-    const nextButton = page
-      .locator("wizard-shell")
-      .locator(".footer-right wa-button");
-    await expect(nextButton).toHaveJSProperty("disabled", false);
-    await nextButton.click();
-
-    // The browser mock accepts any HTTPS server with a password
-    await expect(page.locator("proxmox-configure-view")).toBeVisible();
-    await expect(connectView).toHaveCount(0);
-  });
-
   test("step 1: can navigate to step 2 with valid connection", async ({
     page,
   }) => {
@@ -139,8 +119,9 @@ test.describe("Proxmox Installation Flow", () => {
     await expect(nextButton).toHaveJSProperty("disabled", false);
     await nextButton.click();
 
-    // Should advance to configure view
+    // The browser mock accepts any HTTPS server with a password
     await expect(page.locator("proxmox-configure-view")).toBeVisible();
+    await expect(connectView).toHaveCount(0);
   });
 
   test("step 2: shows VM configuration view", async ({ page }) => {
