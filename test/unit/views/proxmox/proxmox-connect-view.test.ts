@@ -363,6 +363,77 @@ describe("proxmox-connect-view", () => {
     expect(attempts).to.equal(4);
   });
 
+  describe("reconnecting after the session expired", () => {
+    const url = "https://pve.example:8006";
+    const trusted = Array(32).fill("AB").join(":");
+
+    beforeEach(() => {
+      wizardState.setSelection("proxmoxUsername", "installer@pve");
+      wizardState.setSelection("proxmoxPreviousServer", {
+        server_url: url,
+        certificate_sha256: trusted,
+      });
+    });
+
+    function mockServer(fingerprint: string, calls: string[]) {
+      mockTauriIpc((cmd) => {
+        calls.push(cmd);
+        if (cmd === "proxmox_certificate_fingerprint") return fingerprint;
+        if (cmd === "proxmox_connect")
+          return {
+            server_url: url,
+            ticket: "ticket",
+            csrf_token: "csrf",
+            certificate_sha256: fingerprint,
+          };
+        throw new Error(cmd);
+      });
+    }
+
+    it("starts from the same server and user, but not the password", async () => {
+      mockServer(trusted, []);
+      const { inputs } = await renderView();
+      expect(inputs[0].value).to.equal(url);
+      expect(inputs[1].value).to.equal("installer@pve");
+      expect(inputs[2].value ?? "").to.equal("");
+    });
+
+    it("doesn't ask again for the certificate trusted before", async () => {
+      const calls: string[] = [];
+      mockServer(trusted, calls);
+      const { el, inputs } = await renderView();
+      await typeInto(el, inputs[2], "secret");
+      expect(await el.connect()).to.be.true;
+      expect(calls).to.deep.equal([
+        "proxmox_certificate_fingerprint",
+        "proxmox_connect",
+      ]);
+      expect(wizardState.getState().selections.proxmoxPreviousServer).to.be
+        .undefined;
+    });
+
+    it("warns that a different certificate is not the one trusted before", async () => {
+      const calls: string[] = [];
+      const changed = Array(32).fill("CD").join(":");
+      mockServer(changed, calls);
+      const { el, inputs } = await renderView();
+      await typeInto(el, inputs[2], "secret");
+      const connecting = el.connect();
+      const dialog = el.shadowRoot!.querySelector("wa-dialog")!;
+      await waitUntil(
+        () =>
+          dialog.querySelector(".fingerprint")!.textContent!.trim() === changed
+      );
+      expect(
+        dialog.querySelector(".certificate-changed")!.textContent
+      ).to.contain("isn't the certificate this server showed");
+      expect(calls).to.deep.equal(["proxmox_certificate_fingerprint"]);
+      dialog.querySelectorAll("wa-button")[0].click();
+      expect(await connecting).to.be.false;
+      expect(calls).to.not.include("proxmox_connect");
+    });
+  });
+
   for (const action of ["cancel", "dismiss", "disconnect"] as const) {
     it(`sends no credentials after certificate ${action}`, async () => {
       const calls: string[] = [];

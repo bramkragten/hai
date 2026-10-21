@@ -350,6 +350,7 @@
   "views.proxmox.proxmox_connect_view.trust_server_title": "Trust this Proxmox server?",
   "views.proxmox.proxmox_connect_view.untrusted_certificate": "Your computer doesn't trust the security certificate of {server}.",
   "views.proxmox.proxmox_connect_view.untrusted_certificate_is_normal": "That is normal for most Proxmox servers. Proxmox creates its own certificate when it is installed, and your browser shows the same warning when you open the Proxmox web interface.",
+  "views.proxmox.proxmox_connect_view.certificate_changed": "This isn't the certificate this server showed when you connected before. Renewing the certificate in Proxmox changes it, but so does someone intercepting the connection. Compare the fingerprint below with the one in Proxmox before you continue.",
   "views.proxmox.proxmox_connect_view.only_continue_for_your_server": "Only continue if this is your Proxmox server. If you didn't expect this warning, cancel. Your password has not been sent yet.",
   "views.proxmox.proxmox_connect_view.certificate_fingerprint": "Certificate fingerprint (SHA-256), shown in Proxmox under System > Certificates",
   "views.proxmox.proxmox_connect_view.trust_and_connect": "Trust and connect",

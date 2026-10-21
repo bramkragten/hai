@@ -891,6 +891,13 @@ describe("proxmox-configure-view", () => {
     expect(el.shadowRoot!.querySelector("wa-button")!.textContent).to.contain(
       "Reconnect"
     );
+    // Reconnecting starts from the same server
+    expect(
+      wizardState.getState().selections.proxmoxPreviousServer
+    ).to.deep.equal({
+      server_url: "https://192.168.1.100:8006",
+      certificate_sha256: undefined,
+    });
   });
 
   it("offers reconnect when the session is missing", async () => {

@@ -64,6 +64,14 @@ export interface WizardSelections {
   proxmoxUsername?: string;
   /** Cleared when a connect field changes, so the session no longer applies. */
   proxmoxConnected?: boolean;
+  /**
+   * The server of a session that expired or whose certificate changed, so
+   * reconnecting starts from it and notices a different certificate.
+   */
+  proxmoxPreviousServer?: {
+    server_url: string;
+    certificate_sha256?: string | null;
+  };
 
   /** Proxmox target picked in the "Configure VM" step. */
   proxmoxNode?: string;

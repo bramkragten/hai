@@ -80,6 +80,10 @@ export class ProxmoxConnectView extends LitElement {
     .certificate-host {
       overflow-wrap: anywhere;
     }
+    .certificate-changed {
+      color: var(--ha-error-color, #b30532);
+      font-weight: 500;
+    }
     .fingerprint-label {
       font-size: 0.8125rem;
       color: var(--ha-secondary-text-color, #727272);
@@ -158,11 +162,21 @@ export class ProxmoxConnectView extends LitElement {
   private _error: InstallerError | null = null;
 
   @state()
-  private _certificate: { url: string; fingerprint: string } | null = null;
+  private _certificate: {
+    url: string;
+    fingerprint: string;
+    /** The server showed a different certificate when the user trusted it */
+    changed: boolean;
+  } | null = null;
 
   // The certificate the user already trusted for this server, so a second
   // attempt (an authenticator code, a typo in the password) doesn't ask again
   private _trustedCertificate: { url: string; fingerprint: string } | null =
+    null;
+
+  // The last certificate trusted for a server, kept when the URL is edited:
+  // a different one for that server is worth a warning, not just a prompt
+  private _previousCertificate: { url: string; fingerprint: string } | null =
     null;
 
   private _resolveCertificate?: (confirmed: boolean) => void;
@@ -173,19 +187,36 @@ export class ProxmoxConnectView extends LitElement {
 
     // Coming back from a later step: show who we're connected as, and keep
     // the session so Next doesn't ask for the password again.
-    const { proxmoxSession, proxmoxUsername, proxmoxConnected } =
-      wizardState.getState().selections;
+    const {
+      proxmoxSession,
+      proxmoxUsername,
+      proxmoxConnected,
+      proxmoxPreviousServer,
+    } = wizardState.getState().selections;
     if (proxmoxSession) {
       this._serverUrl = proxmoxSession.server_url;
       this._username = proxmoxUsername ?? this._username;
       this._connected = proxmoxConnected === true;
-      if (proxmoxSession.certificate_sha256) {
-        this._trustedCertificate = {
-          url: proxmoxSession.server_url,
-          fingerprint: proxmoxSession.certificate_sha256,
-        };
-      }
+      this._trustCertificate(
+        proxmoxSession.server_url,
+        proxmoxSession.certificate_sha256
+      );
+    } else if (proxmoxPreviousServer) {
+      // The session expired or the certificate changed: reconnect to the same
+      // server as the same user, and compare the certificate it shows now
+      this._serverUrl = proxmoxPreviousServer.server_url;
+      this._username = proxmoxUsername ?? this._username;
+      this._trustCertificate(
+        proxmoxPreviousServer.server_url,
+        proxmoxPreviousServer.certificate_sha256
+      );
     }
+  }
+
+  private _trustCertificate(url: string, fingerprint?: string | null) {
+    if (!fingerprint) return;
+    this._trustedCertificate = { url, fingerprint };
+    this._previousCertificate = { url, fingerprint };
   }
 
   disconnectedCallback() {
@@ -211,11 +242,16 @@ export class ProxmoxConnectView extends LitElement {
       return true;
     }
 
-    this._certificate = { url, fingerprint };
+    const previous = this._previousCertificate;
+    this._certificate = {
+      url,
+      fingerprint,
+      changed: previous?.url === url && previous.fingerprint !== fingerprint,
+    };
     const confirmed = await new Promise<boolean>((resolve) => {
       this._resolveCertificate = resolve;
     });
-    if (confirmed) this._trustedCertificate = { url, fingerprint };
+    if (confirmed) this._trustCertificate(url, fingerprint);
     return confirmed;
   }
 
@@ -289,6 +325,7 @@ export class ProxmoxConnectView extends LitElement {
       wizardState.setSelection("proxmoxSession", session);
       wizardState.setSelection("proxmoxUsername", this._username);
       wizardState.setSelection("proxmoxConnected", true);
+      wizardState.setSelection("proxmoxPreviousServer", undefined);
       return true;
     } catch (error) {
       if (!isCurrent()) return false;
@@ -489,11 +526,17 @@ export class ProxmoxConnectView extends LitElement {
             }
           )}
         </p>
-        <p>
-          ${localize(
-            "views.proxmox.proxmox_connect_view.untrusted_certificate_is_normal"
-          )}
-        </p>
+        ${this._certificate?.changed
+          ? html`<p class="certificate-changed">
+              ${localize(
+                "views.proxmox.proxmox_connect_view.certificate_changed"
+              )}
+            </p>`
+          : html`<p>
+              ${localize(
+                "views.proxmox.proxmox_connect_view.untrusted_certificate_is_normal"
+              )}
+            </p>`}
         <p>
           ${localize(
             "views.proxmox.proxmox_connect_view.only_continue_for_your_server"

@@ -590,6 +590,13 @@ export class ProxmoxConfigureView extends LitElement {
       )
     );
     if (this._sessionExpired) {
+      const session = wizardState.getState().selections.proxmoxSession;
+      if (session) {
+        wizardState.setSelection("proxmoxPreviousServer", {
+          server_url: session.server_url,
+          certificate_sha256: session.certificate_sha256,
+        });
+      }
       wizardState.setSelection("proxmoxSession", undefined);
       wizardState.setSelection("proxmoxConnected", false);
     }
