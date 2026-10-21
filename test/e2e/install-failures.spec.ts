@@ -40,7 +40,8 @@ for (const scenario of [
   {
     failure: "utm-create",
     flow: "utm",
-    message: "UTM error: Automation permission denied",
+    message:
+      "Home Assistant Installer is not allowed to control UTM. Open System Settings > Privacy & Security > Automation, enable UTM under Home Assistant Installer, then try again.",
     recovery: "retry",
   },
 ] as const) {

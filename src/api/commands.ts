@@ -145,7 +145,6 @@ async function simulateFlashProgress(
   const stages: Array<{
     stage: FlashProgress["stage"];
     message: string;
-    weight: number;
     totalBytes: number;
     showBytes: boolean;
     steps: number;
@@ -154,7 +153,6 @@ async function simulateFlashProgress(
     {
       stage: "downloading",
       message: localize("api.commands.downloading_image"),
-      weight: 30,
       totalBytes: compressedSize,
       showBytes: true,
       steps: 30,
@@ -163,16 +161,15 @@ async function simulateFlashProgress(
     {
       stage: "extracting",
       message: localize("api.commands.extracting_image"),
-      weight: 10,
-      totalBytes: 0,
-      showBytes: false,
+      // Measured against the compressed archive, the only size known up front
+      totalBytes: compressedSize,
+      showBytes: true,
       steps: 10,
       delay: 100,
     },
     {
       stage: "writing",
       message: localize("api.commands.writing_to_device"),
-      weight: 35,
       totalBytes: extractedSize,
       showBytes: true,
       steps: 35,
@@ -181,7 +178,6 @@ async function simulateFlashProgress(
     {
       stage: "verifying",
       message: localize("api.commands.verifying_written_data"),
-      weight: 15,
       totalBytes: extractedSize,
       showBytes: true,
       steps: 15,
@@ -190,7 +186,6 @@ async function simulateFlashProgress(
     {
       stage: "finalizing",
       message: localize("api.commands.finalizing"),
-      weight: 10,
       totalBytes: 0,
       showBytes: false,
       steps: 10,
@@ -198,14 +193,12 @@ async function simulateFlashProgress(
     },
   ];
 
-  let overallProgress = 0;
   mockFlashAttempt = attempt;
   mockFlashCancelled = false;
 
   for (const {
     stage,
     message,
-    weight,
     totalBytes,
     showBytes,
     steps,
@@ -222,12 +215,12 @@ async function simulateFlashProgress(
         };
       }
 
+      // Each stage counts from 0 to 100 on its own, like the backend
       const stageProgress = (step * 100) / steps;
-      const progress = overallProgress + (stageProgress * weight) / 100;
 
       onProgress({
         stage,
-        progress: Math.round(progress),
+        progress: Math.round(stageProgress),
         bytes_processed: showBytes
           ? Math.round((totalBytes * stageProgress) / 100)
           : 0,
@@ -239,7 +232,6 @@ async function simulateFlashProgress(
 
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    overallProgress += weight;
   }
 
   onProgress({
@@ -445,28 +437,27 @@ async function simulateUtmDownload(
     },
   ];
 
-  let overallProgress = 0;
-  const stageWeight = 100 / stages.length;
+  const compressedSize = 400 * 1024 * 1024; // 400 MB compressed
   mockVmAttempt = attempt;
   mockVmCancelled = false;
 
   for (const { stage, message, steps, delay } of stages) {
     for (let step = 0; step <= steps; step++) {
       throwIfMockVmCancelled();
+      // Each stage counts from 0 to 100 on its own, like the backend; both
+      // measure against the compressed image, extraction included
       const stageProgress = (step * 100) / steps;
-      const progress = overallProgress + (stageProgress * stageWeight) / 100;
 
       onProgress({
         stage,
-        progress: Math.round(progress),
-        bytes_processed: 0,
-        total_bytes: 0,
+        progress: Math.round(stageProgress),
+        bytes_processed: Math.round((compressedSize * stageProgress) / 100),
+        total_bytes: compressedSize,
         message,
       });
 
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    overallProgress += stageWeight;
   }
 
   onProgress({
@@ -679,9 +670,12 @@ export async function proxmoxEnableStorageImport(
       // Shaped like the native CommandError rejections
       throw {
         code: "proxmox_action_required",
-        message: `Storage '${storage}' must be an active directory storage on node '${node}'.`,
+        message: `Storage "${storage}" must be an active directory storage on node "${node}".`,
         retryable: false,
-        details: {},
+        details: {
+          message_key: "backend.proxmox.storage_not_directory",
+          message_params: { storage, node },
+        },
       };
     }
     // Storage configuration is per cluster, not per spelling of its address
@@ -814,63 +808,56 @@ async function simulateProxmoxInstall(
   const stages: Array<{
     stage: FlashProgress["stage"];
     message: string;
-    weight: number;
     steps: number;
     delay: number;
   }> = [
     {
       stage: "downloading",
       message: localize("api.commands.downloading_haos_image"),
-      weight: 40,
       steps: 40,
       delay: 100,
     },
     {
       stage: "extracting",
       message: localize("api.commands.extracting_image"),
-      weight: 10,
       steps: 10,
       delay: 80,
     },
     {
       stage: "uploading",
       message: localize("api.commands.uploading_to_proxmox"),
-      weight: 20,
       steps: 20,
       delay: 80,
     },
     {
       stage: "creating_vm",
       message: localize("api.commands.creating_virtual_machine"),
-      weight: 15,
       steps: 15,
       delay: 100,
     },
     {
       stage: "starting_vm",
       message: localize("api.commands.starting_home_assistant_os"),
-      weight: 15,
       steps: 10,
       delay: 150,
     },
   ];
 
-  let overallProgress = 0;
   mockVmAttempt = attempt;
   mockVmCancelled = false;
 
-  for (const { stage, message, weight, steps, delay } of stages) {
+  for (const { stage, message, steps, delay } of stages) {
     for (let step = 0; step <= steps; step++) {
       // Like the native install, a stop counts until the VM is being created
       if (stage !== "starting_vm" && (stage !== "creating_vm" || step === 0)) {
         throwIfMockVmCancelled();
       }
+      // Each stage counts from 0 to 100 on its own, like the backend
       const stageProgress = (step * 100) / steps;
-      const progress = overallProgress + (stageProgress * weight) / 100;
 
       onProgress({
         stage,
-        progress: Math.round(progress),
+        progress: Math.round(stageProgress),
         bytes_processed: 0,
         total_bytes: 0,
         message,
@@ -880,7 +867,6 @@ async function simulateProxmoxInstall(
 
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    overallProgress += weight;
   }
 
   return {
