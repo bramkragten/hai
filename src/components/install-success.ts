@@ -123,13 +123,6 @@ export class InstallSuccess extends LitElement {
         border-radius: 12px;
       }
 
-      @media (prefers-color-scheme: dark) {
-        .companion-section {
-          background-color: var(--ha-card-background, #1e1e1e);
-          border-color: var(--ha-border-color, #333333);
-        }
-      }
-
       .companion-title {
         font-size: 1rem;
         font-weight: 500;
@@ -150,7 +143,7 @@ export class InstallSuccess extends LitElement {
         gap: 0.5rem;
         padding: 0.625rem 1rem;
         background-color: var(--ha-background-color, #f5f5f5);
-        border: 1px solid var(--ha-border-color, #e0e0e0);
+        border: 1px solid var(--ha-control-border-color, #e0e0e0);
         border-radius: 8px;
         color: var(--ha-text-color, #212121);
         text-decoration: none;
@@ -169,24 +162,11 @@ export class InstallSuccess extends LitElement {
         fill: white;
       }
 
-      @media (prefers-color-scheme: dark) {
-        .app-link {
-          background-color: var(--ha-background-color, #2d2d2d);
-          border-color: #444444;
-        }
-      }
-
       .app-link svg {
         width: 20px;
         height: 20px;
         fill: var(--ha-text-color, #212121);
         transition: fill 0.2s ease;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        .app-link svg {
-          fill: var(--ha-text-color, #e0e0e0);
-        }
       }
 
       .tip-section {

@@ -70,13 +70,6 @@ export class ProxmoxConnectView extends LitElement {
       max-width: 500px;
     }
 
-    @media (prefers-color-scheme: dark) {
-      .connect-card {
-        background-color: var(--ha-card-background, #1e1e1e);
-        border-color: var(--ha-border-color, #333333);
-      }
-    }
-
     wa-callout {
       padding: 0;
     }

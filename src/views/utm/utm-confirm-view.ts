@@ -55,13 +55,6 @@ export class UtmConfirmView extends LitElement {
       max-width: 500px;
     }
 
-    @media (prefers-color-scheme: dark) {
-      .summary-card {
-        background-color: var(--ha-card-background, #1e1e1e);
-        border-color: var(--ha-border-color, #333333);
-      }
-    }
-
     .summary-row {
       display: flex;
       align-items: center;
@@ -127,12 +120,6 @@ export class UtmConfirmView extends LitElement {
       height: 1px;
       background-color: var(--ha-border-color, #e0e0e0);
       margin: 0;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .divider {
-        background-color: var(--ha-border-color, #333333);
-      }
     }
   `;
 

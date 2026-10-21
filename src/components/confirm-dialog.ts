@@ -79,13 +79,6 @@ export class ConfirmDialog extends LitElement {
       font-size: 0.875rem;
     }
 
-    @media (prefers-color-scheme: dark) {
-      .drive-details {
-        background-color: var(--ha-card-background, #1e1e1e);
-        border-color: var(--ha-border-color, #333333);
-      }
-    }
-
     .detail-label {
       color: var(--ha-secondary-text-color, #727272);
       margin: 0;

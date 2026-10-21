@@ -124,13 +124,6 @@ export class ProxmoxConfigureView extends LitElement {
         flex-shrink: 0;
       }
 
-      @media (prefers-color-scheme: dark) {
-        .config-card {
-          background-color: var(--ha-card-background, #1e1e1e);
-          border-color: var(--ha-border-color, #333333);
-        }
-      }
-
       .setting-row {
         display: flex;
         align-items: flex-start;

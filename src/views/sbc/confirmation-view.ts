@@ -51,13 +51,6 @@ export class ConfirmationView extends LitElement {
       max-width: 500px;
     }
 
-    @media (prefers-color-scheme: dark) {
-      .summary-card {
-        background-color: var(--ha-card-background, #1e1e1e);
-        border-color: var(--ha-border-color, #333333);
-      }
-    }
-
     .summary-row {
       display: flex;
       align-items: center;
@@ -92,12 +85,6 @@ export class ConfirmationView extends LitElement {
       justify-content: center;
       background-color: var(--ha-border-color, #e0e0e0);
       border-radius: 8px;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .device-image-placeholder {
-        background-color: var(--ha-border-color, #333333);
-      }
     }
 
     .icon-container svg {
@@ -151,8 +138,8 @@ export class ConfirmationView extends LitElement {
       gap: 0.75rem;
       padding: 1rem;
       margin-top: 1.5rem;
-      background-color: rgba(255, 152, 0, 0.1);
-      border: 1px solid rgba(255, 152, 0, 0.3);
+      background-color: var(--ha-warning-background, rgba(255, 152, 0, 0.1));
+      border: 1px solid var(--ha-warning-border, rgba(255, 152, 0, 0.3));
       border-radius: 8px;
       max-width: 500px;
       width: 100%;
@@ -160,13 +147,6 @@ export class ConfirmationView extends LitElement {
       font-size: 0.875rem;
       line-height: 1.5;
       color: var(--ha-text-color, #212121);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .notice {
-        background-color: rgba(255, 152, 0, 0.15);
-        border-color: rgba(255, 152, 0, 0.4);
-      }
     }
 
     .notice p {
@@ -177,12 +157,6 @@ export class ConfirmationView extends LitElement {
       height: 1px;
       background-color: var(--ha-border-color, #e0e0e0);
       margin: 0;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .divider {
-        background-color: var(--ha-border-color, #333333);
-      }
     }
   `;
 
