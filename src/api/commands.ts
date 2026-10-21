@@ -868,7 +868,10 @@ async function simulateProxmoxInstall(
 
       onProgress({
         stage,
-        progress: Math.round(stageProgress),
+        // The backend spends 5-95% of the upload on sending the bytes
+        progress: Math.round(
+          stage === "uploading" ? 5 + stageProgress * 0.9 : stageProgress
+        ),
         bytes_processed: Math.round((totalBytes * stageProgress) / 100),
         total_bytes: totalBytes,
         message,
@@ -877,6 +880,19 @@ async function simulateProxmoxInstall(
       if (stage === "creating_vm" && step === 0) failMockOperation("proxmox");
 
       await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    // The last step left every byte sent at 95%, while Proxmox processes
+    // the upload; only then does the backend report 100%
+    if (stage === "uploading") {
+      await new Promise((resolve) => setTimeout(resolve, delay * 5));
+      throwIfMockVmCancelled();
+      onProgress({
+        stage,
+        progress: 100,
+        bytes_processed: totalBytes,
+        total_bytes: totalBytes,
+        message,
+      });
     }
   }
 
