@@ -586,17 +586,8 @@ async generateQRCodes() {
 
 The Home Toolbox button opens https://toolbox.openhomefoundation.org/ in the
 user's browser through the opener plugin. The installer page embeds no
-frames, so its CSP has no `frame-src`. `connect-src` allows Tauri's IPC
-protocol (`ipc:` on macOS and Linux, `http://ipc.localhost` on Windows);
-without it every command falls back to the slower postMessage interface.
-
-CSP Configuration (tauri.conf.json):
-```json
-{
-  "app": {
-    "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost data:"
-    }
-  }
-}
-```
+frames, so the CSP in `tauri.conf.json` (shown in
+[architecture.md](architecture.md)) has no `frame-src`. Its `connect-src`
+allows Tauri's IPC protocol (`ipc:` on macOS and Linux,
+`http://ipc.localhost` on Windows); without it every command falls back to
+the slower postMessage interface.

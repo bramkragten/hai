@@ -332,9 +332,8 @@ The Open Home Foundation Toolbox (https://toolbox.openhomefoundation.org/) is ac
 ```
 
 **Behavior:**
-- Clicking the button opens the Toolbox in an embedded iframe view within the app
-- Back button or close returns to the installer flow
-- Requires internet connection (show message if offline)
+- Clicking the button opens the Toolbox in the user's browser; the installer stays on the step it was on
+- The installer embeds no web content, so offline the browser shows its own error
 
 ---
 
