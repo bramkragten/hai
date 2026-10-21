@@ -225,7 +225,7 @@ export class InstallProgress extends LitElement {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      color: var(--ha-primary-color-dark, #004156);
+      color: white;
       font-size: 1.25rem;
       font-weight: 500;
       white-space: nowrap;
