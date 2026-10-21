@@ -418,6 +418,40 @@ describe("proxmox-connect-view", () => {
     ]);
   });
 
+  it("warns when a retry shows an untrusted certificate where the platform trusted one", async () => {
+    const untrusted = Array(32).fill("CD").join(":");
+    let fingerprint: string | null = null;
+    let logins = 0;
+    mockTauriIpc((cmd) => {
+      if (cmd === "proxmox_certificate_fingerprint") return fingerprint;
+      logins++;
+      // The first login asks for an authenticator code
+      throw {
+        code: "proxmox_two_factor",
+        message: "This account requires an authenticator app code.",
+        retryable: false,
+        details: {},
+      };
+    });
+    const { el, inputs } = await renderView();
+    await typeInto(el, inputs[0], "https://pve.example:8006");
+    await typeInto(el, inputs[2], "secret");
+    expect(await el.connect()).to.be.false;
+    expect(logins).to.equal(1);
+
+    fingerprint = untrusted;
+    const connecting = el.connect();
+    const dialog = el.shadowRoot!.querySelector("wa-dialog")!;
+    await waitUntil(
+      () =>
+        dialog.querySelector(".fingerprint")!.textContent!.trim() === untrusted
+    );
+    expect(dialog.querySelector(".certificate-changed")).to.exist;
+    dialog.querySelectorAll("wa-button")[0].click();
+    expect(await connecting).to.be.false;
+    expect(logins).to.equal(1);
+  });
+
   it("still warns about a changed certificate after trying another server", async () => {
     const certificates: Record<string, string> = {
       "https://a.example:8006": Array(32).fill("AA").join(":"),

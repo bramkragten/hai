@@ -311,10 +311,13 @@ export class ProxmoxConnectView extends LitElement {
     try {
       const fingerprint = await proxmoxCertificateFingerprint(url);
       if (!isCurrent()) return false;
-      // No fingerprint means the platform trusts the certificate
+      // No fingerprint means the platform trusts the certificate; remembered,
+      // so an untrusted one on a retry is a change, not a first visit
       if (fingerprint) {
         const confirmed = await this._confirmCertificate(url, fingerprint);
         if (!confirmed || !isCurrent()) return false;
+      } else {
+        this._trustCertificate(url, null);
       }
       const session = await proxmoxConnect({
         server_url: url,
