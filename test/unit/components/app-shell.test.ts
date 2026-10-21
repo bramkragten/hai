@@ -32,8 +32,7 @@ interface WizardShell extends HTMLElement {
 
 interface ErrorFlags {
   _flashError: boolean;
-  _utmInstallError: boolean;
-  _proxmoxInstallError: boolean;
+  _vmInstallError: boolean;
 }
 
 function fire(target: Element, type: string, detail?: unknown) {
@@ -816,14 +815,12 @@ describe("app-shell", () => {
     it("is cleared for every flow when a new path is chosen", async () => {
       const flags = el as unknown as ErrorFlags;
       flags._flashError = true;
-      flags._utmInstallError = true;
-      flags._proxmoxInstallError = true;
+      flags._vmInstallError = true;
 
       await enterSbcFlow(el);
 
       expect(flags._flashError).to.be.false;
-      expect(flags._utmInstallError).to.be.false;
-      expect(flags._proxmoxInstallError).to.be.false;
+      expect(flags._vmInstallError).to.be.false;
     });
   });
 
