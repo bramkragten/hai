@@ -1196,6 +1196,22 @@ mod tests {
 
     #[test]
     #[cfg(feature = "mock")]
+    fn test_check_utm_automation_mock_returns_ok() {
+        assert!(check_utm_automation().is_ok());
+    }
+
+    // Asking again can't change the platform, so the check offers no retry.
+    #[cfg(not(feature = "mock"))] // asserts on the real backend's answers
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn test_check_utm_automation_unsupported_off_macos() {
+        let err = check_utm_automation().unwrap_err();
+        assert_eq!(err.code, "unsupported_platform");
+        assert!(!err.retryable);
+    }
+
+    #[test]
+    #[cfg(feature = "mock")]
     fn test_get_utm_vm_status_mock_returns_running_vm() {
         let result = get_utm_vm_status("test-vm".to_string());
         assert!(result.is_ok());
