@@ -805,38 +805,49 @@ async function simulateProxmoxInstall(
   onProgress: (progress: FlashProgress) => void,
   attempt: string
 ): Promise<ProxmoxVmResult> {
+  const compressedSize = 400 * 1024 * 1024; // 400 MB compressed
+  const extractedSize = 1200 * 1024 * 1024; // 1.2 GB qcow2
+
+  // Byte counts like the backend's: the download and extraction measure the
+  // compressed image, the upload the extracted one, VM steps have none
   const stages: Array<{
     stage: FlashProgress["stage"];
     message: string;
+    totalBytes: number;
     steps: number;
     delay: number;
   }> = [
     {
       stage: "downloading",
+      totalBytes: compressedSize,
       message: localize("api.commands.downloading_haos_image"),
       steps: 40,
       delay: 100,
     },
     {
       stage: "extracting",
+      totalBytes: compressedSize,
       message: localize("api.commands.extracting_image"),
       steps: 10,
       delay: 80,
     },
     {
       stage: "uploading",
+      totalBytes: extractedSize,
       message: localize("api.commands.uploading_to_proxmox"),
       steps: 20,
       delay: 80,
     },
     {
       stage: "creating_vm",
+      totalBytes: 0,
       message: localize("api.commands.creating_virtual_machine"),
       steps: 15,
       delay: 100,
     },
     {
       stage: "starting_vm",
+      totalBytes: 0,
       message: localize("api.commands.starting_home_assistant_os"),
       steps: 10,
       delay: 150,
@@ -846,7 +857,7 @@ async function simulateProxmoxInstall(
   mockVmAttempt = attempt;
   mockVmCancelled = false;
 
-  for (const { stage, message, steps, delay } of stages) {
+  for (const { stage, message, totalBytes, steps, delay } of stages) {
     for (let step = 0; step <= steps; step++) {
       // Like the native install, a stop counts until the VM is being created
       if (stage !== "starting_vm" && (stage !== "creating_vm" || step === 0)) {
@@ -858,8 +869,8 @@ async function simulateProxmoxInstall(
       onProgress({
         stage,
         progress: Math.round(stageProgress),
-        bytes_processed: 0,
-        total_bytes: 0,
+        bytes_processed: Math.round((totalBytes * stageProgress) / 100),
+        total_bytes: totalBytes,
         message,
       });
 
