@@ -584,49 +584,18 @@ async generateQRCodes() {
 
 ## Toolbox Integration
 
-```typescript
-@customElement('toolbox-view')
-export class ToolboxView extends LitElement {
-  static styles = css`
-    :host {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-    .toolbar {
-      padding: 8px 16px;
-      border-bottom: 1px solid var(--wa-color-neutral-200);
-    }
-    iframe {
-      width: 100%;
-      height: calc(100% - 48px);
-      border: none;
-    }
-  `;
-
-  render() {
-    return html`
-      <div class="toolbar">
-        <wa-button variant="text" @click=${this._close}>
-          ← Back to Installer
-        </wa-button>
-      </div>
-      <iframe src="https://toolbox.openhomefoundation.org/"></iframe>
-    `;
-  }
-
-  private _close() {
-    this.dispatchEvent(new CustomEvent('close-toolbox'));
-  }
-}
-```
+The Home Toolbox button opens https://toolbox.openhomefoundation.org/ in the
+user's browser through the opener plugin. The installer page embeds no
+frames, so its CSP has no `frame-src`. `connect-src` allows Tauri's IPC
+protocol (`ipc:` on macOS and Linux, `http://ipc.localhost` on Windows);
+without it every command falls back to the slower postMessage interface.
 
 CSP Configuration (tauri.conf.json):
 ```json
 {
   "app": {
     "security": {
-      "csp": "default-src 'self'; frame-src https://toolbox.openhomefoundation.org/"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost data:"
     }
   }
 }
