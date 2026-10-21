@@ -28,200 +28,202 @@ const mdiRefresh =
 @customElement("utm-check-view")
 export class UtmCheckView extends LitElement {
   protected readonly _accessibility = new ViewAccessibility(this);
-  static styles = css`
-    ${reducedMotionStyles}
-    :host {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100%;
-    }
+  static styles = [
+    reducedMotionStyles,
+    css`
+      :host {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100%;
+      }
 
-    h2 {
-      font-size: 1.5rem;
-      font-weight: 400;
-      color: var(--ha-text-color, #212121);
-      margin: 0 0 0.5rem 0;
-      text-align: center;
-    }
+      h2 {
+        font-size: 1.5rem;
+        font-weight: 400;
+        color: var(--ha-text-color, #212121);
+        margin: 0 0 0.5rem 0;
+        text-align: center;
+      }
 
-    .subtitle {
-      font-size: 1rem;
-      color: var(--ha-secondary-text-color, #727272);
-      margin: 0 0 1.5rem 0;
-      text-align: center;
-    }
+      .subtitle {
+        font-size: 1rem;
+        color: var(--ha-secondary-text-color, #727272);
+        margin: 0 0 1.5rem 0;
+        text-align: center;
+      }
 
-    .status-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1rem;
-      padding: 1.25rem;
-      background-color: var(--ha-card-background, #ffffff);
-      border: 1px solid var(--ha-border-color, #e0e0e0);
-      border-radius: 12px;
-      width: 100%;
-      box-sizing: border-box;
-      max-width: 500px;
-    }
-
-    @media (prefers-color-scheme: dark) {
       .status-card {
-        background-color: var(--ha-card-background, #1e1e1e);
-        border-color: var(--ha-border-color, #333333);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.25rem;
+        background-color: var(--ha-card-background, #ffffff);
+        border: 1px solid var(--ha-border-color, #e0e0e0);
+        border-radius: 12px;
+        width: 100%;
+        box-sizing: border-box;
+        max-width: 500px;
       }
-    }
 
-    casita-mascot {
-      width: 96px;
-      height: 96px;
-    }
-
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .status-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .status-icon.loading {
-      width: 24px;
-      height: 24px;
-      background: none;
-    }
-
-    .status-icon.success {
-      background-color: #4caf50;
-    }
-
-    .status-icon.warning {
-      background-color: #ff9800;
-    }
-
-    .status-icon svg {
-      width: 16px;
-      height: 16px;
-      fill: white;
-    }
-
-    .spinner {
-      width: 24px;
-      height: 24px;
-      border: 2px solid var(--ha-secondary-text-color, #727272);
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
+      @media (prefers-color-scheme: dark) {
+        .status-card {
+          background-color: var(--ha-card-background, #1e1e1e);
+          border-color: var(--ha-border-color, #333333);
+        }
       }
-    }
 
-    .status-text {
-      display: flex;
-      flex-direction: column;
-    }
+      casita-mascot {
+        width: 96px;
+        height: 96px;
+      }
 
-    .status-text.unavailable {
-      text-align: center;
-    }
+      .status-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
 
-    .status-title {
-      font-size: 1rem;
-      font-weight: 500;
-      color: var(--ha-text-color, #212121);
-      margin: 0;
-    }
+      .status-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
 
-    .status-description {
-      font-size: 0.8125rem;
-      color: var(--ha-secondary-text-color, #727272);
-      margin: 0.25rem 0 0 0;
-    }
+      .status-icon.loading {
+        width: 24px;
+        height: 24px;
+        background: none;
+      }
 
-    .version-info {
-      font-size: 0.75rem;
-      color: var(--ha-secondary-text-color, #9e9e9e);
-      margin: 0;
-    }
+      .status-icon.success {
+        background-color: #4caf50;
+      }
 
-    .warning-card {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      padding: 1rem 1.25rem;
-      background-color: rgba(255, 152, 0, 0.1);
-      border: 1px solid rgba(255, 152, 0, 0.3);
-      border-radius: 12px;
-      width: 100%;
-      box-sizing: border-box;
-      max-width: 500px;
-      margin-bottom: 1rem;
-    }
+      .status-icon.warning {
+        background-color: #ff9800;
+      }
 
-    @media (prefers-color-scheme: dark) {
+      .status-icon svg {
+        width: 16px;
+        height: 16px;
+        fill: white;
+      }
+
+      .spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid var(--ha-secondary-text-color, #727272);
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .status-text {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .status-text.unavailable {
+        text-align: center;
+      }
+
+      .status-title {
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--ha-text-color, #212121);
+        margin: 0;
+      }
+
+      .status-description {
+        font-size: 0.8125rem;
+        color: var(--ha-secondary-text-color, #727272);
+        margin: 0.25rem 0 0 0;
+      }
+
+      .version-info {
+        font-size: 0.75rem;
+        color: var(--ha-secondary-text-color, #9e9e9e);
+        margin: 0;
+      }
+
       .warning-card {
-        background-color: rgba(255, 152, 0, 0.15);
-        border-color: rgba(255, 152, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 1rem 1.25rem;
+        background-color: rgba(255, 152, 0, 0.1);
+        border: 1px solid rgba(255, 152, 0, 0.3);
+        border-radius: 12px;
+        width: 100%;
+        box-sizing: border-box;
+        max-width: 500px;
+        margin-bottom: 1rem;
       }
-    }
 
-    .warning-title {
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: var(--ha-text-color, #212121);
-      margin: 0;
-    }
+      @media (prefers-color-scheme: dark) {
+        .warning-card {
+          background-color: rgba(255, 152, 0, 0.15);
+          border-color: rgba(255, 152, 0, 0.4);
+        }
+      }
 
-    @media (prefers-color-scheme: dark) {
       .warning-title {
-        color: #ffb74d;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--ha-text-color, #212121);
+        margin: 0;
       }
-    }
 
-    .warning-description {
-      font-size: 0.8125rem;
-      color: var(--ha-text-color, #212121);
-      margin: 0;
-    }
+      @media (prefers-color-scheme: dark) {
+        .warning-title {
+          color: #ffb74d;
+        }
+      }
 
-    .warning-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      font-size: 0.8125rem;
-      color: var(--ha-text-color, #212121);
-    }
+      .warning-description {
+        font-size: 0.8125rem;
+        color: var(--ha-text-color, #212121);
+        margin: 0;
+      }
 
-    .warning-list li {
-      padding-left: 1rem;
-      position: relative;
-      line-height: 1.4;
-    }
+      .warning-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        font-size: 0.8125rem;
+        color: var(--ha-text-color, #212121);
+      }
 
-    .warning-list li::before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      color: #ff9800;
-    }
+      .warning-list li {
+        padding-left: 1rem;
+        position: relative;
+        line-height: 1.4;
+      }
 
-    wa-button ha-svg-icon {
-      --mdc-icon-size: 1.2em;
-    }
-  `;
+      .warning-list li::before {
+        content: "•";
+        position: absolute;
+        left: 0;
+        color: #ff9800;
+      }
+
+      wa-button ha-svg-icon {
+        --mdc-icon-size: 1.2em;
+      }
+    `,
+  ];
 
   @state()
   private _loading = true;
