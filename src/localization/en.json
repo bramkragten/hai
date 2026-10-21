@@ -310,6 +310,8 @@
   "views.utm.utm_check_view.a_virtual_machine_in_utm_is_great_for_trying_home_assistant_out_but_maybe_n": "A virtual machine in UTM is great for trying Home Assistant out, but maybe not the best solution to run your actual smart home on.",
   "views.utm.utm_check_view.best_for_testing_evaluation": "Best for testing & evaluation",
   "views.utm.utm_check_view.checking_for_utm": "Checking for UTM...",
+  "views.utm.utm_check_view.allow_control_of_utm": "Allow the installer to control UTM",
+  "views.utm.utm_check_view.allow_control_of_utm_description": "UTM opens, and macOS asks whether Home Assistant Installer may control it. Choose OK to create the virtual machine.",
   "views.utm.utm_check_view.download_and_install_utm_to_continue_utm_is_a_free_open_source_virtualizati": "Download and install UTM to continue. UTM is a free, open-source virtualization app for macOS.",
   "views.utm.utm_check_view.error_checking_utm": "Error checking UTM",
   "views.utm.utm_check_view.failed_to_check_utm_status": "Failed to check UTM status",

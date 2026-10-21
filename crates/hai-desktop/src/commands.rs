@@ -545,6 +545,13 @@ pub async fn check_utm_status() -> Result<hai_core::UtmStatus, CommandError> {
         .map_err(CommandError::from_query)
 }
 
+/// Ask macOS whether the installer may control UTM, before anything is
+/// downloaded. The first time, this shows the Automation prompt.
+#[tauri::command(async)]
+pub fn check_utm_automation() -> Result<(), CommandError> {
+    UtmBackend::check_automation(&Backend).map_err(CommandError::from_query)
+}
+
 /// Create a Home Assistant VM in UTM
 #[tauri::command]
 pub async fn create_utm_vm(
@@ -1713,6 +1720,10 @@ mod mock_tests {
 
     impl UtmBackend for UtmCreationBackend {
         async fn check_utm_status(&self) -> hai_core::Result<hai_core::UtmStatus> {
+            unreachable!()
+        }
+
+        fn check_automation(&self) -> hai_core::Result<()> {
             unreachable!()
         }
 

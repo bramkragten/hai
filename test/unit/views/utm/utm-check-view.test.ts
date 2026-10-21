@@ -9,6 +9,7 @@ import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/utm/utm-check-view.js";
 import type { UtmCheckView } from "../../../../src/views/utm/utm-check-view.js";
 import {
+  deferred,
   ipcError,
   mockTauriIpc,
   restoreTauriIpc,
@@ -27,6 +28,7 @@ describe("utm-check-view", () => {
   it("keeps Next gated after a string rejection and supports checking again", async () => {
     let attempts = 0;
     mockTauriIpc((cmd) => {
+      if (cmd === "check_utm_automation") return undefined;
       expect(cmd).to.equal("check_utm_status");
       return ++attempts === 1
         ? Promise.reject(ipcError("utm", "Status check failed", true))
@@ -45,6 +47,71 @@ describe("utm-check-view", () => {
     expect(el.shadowRoot!.textContent).to.contain(
       "Ready to create a Home Assistant virtual machine"
     );
+  });
+
+  it("asks for Automation before the download, and gates Next on it", async () => {
+    const automation = deferred<void>();
+    const calls: string[] = [];
+    mockTauriIpc((cmd) => {
+      calls.push(cmd);
+      if (cmd === "check_utm_status")
+        return {
+          installed: true,
+          path: "/Applications/UTM.app",
+          version: "4.5.0",
+        };
+      if (cmd === "check_utm_automation") return automation.promise;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+    const el = fixtureSync(html`<utm-check-view></utm-check-view>`);
+    await waitUntil(() => calls.includes("check_utm_automation"));
+    await settle();
+    // macOS is asking: say what to do, and don't let the user on yet
+    expect(el.shadowRoot!.textContent).to.contain(
+      "Allow the installer to control UTM"
+    );
+    expect(wizardState.getState().selections.utmInstalled).to.not.be.true;
+
+    automation.resolve();
+    await settle();
+    expect(wizardState.getState().selections.utmInstalled).to.be.true;
+    expect(el.shadowRoot!.textContent).to.contain(
+      "Ready to create a Home Assistant virtual machine"
+    );
+  });
+
+  it("shows a refused Automation prompt and asks again", async () => {
+    let asked = 0;
+    mockTauriIpc((cmd) => {
+      if (cmd === "check_utm_status")
+        return {
+          installed: true,
+          path: "/Applications/UTM.app",
+          version: "4.5.0",
+        };
+      if (cmd === "check_utm_automation")
+        return ++asked === 1
+          ? Promise.reject(
+              ipcError("utm", "Not allowed to control UTM", true, {
+                message_key: "backend.utm.automation_denied",
+                message_params: {},
+              })
+            )
+          : undefined;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+    const el = fixtureSync(html`<utm-check-view></utm-check-view>`);
+    await settle();
+    await settle();
+    expect(
+      el.shadowRoot!.querySelector('[role="alert"]')!.textContent
+    ).to.contain("Privacy & Security > Automation");
+    expect(wizardState.getState().selections.utmInstalled).to.be.false;
+
+    el.shadowRoot!.querySelector("wa-button")!.click();
+    await settle();
+    expect(asked).to.equal(2);
+    expect(wizardState.getState().selections.utmInstalled).to.be.true;
   });
 
   it("keeps a missing UTM installation gated and offers its download", async () => {

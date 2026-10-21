@@ -11,7 +11,7 @@ import {
 } from "../../utils/view-accessibility.js";
 import { InstallDiagnostics } from "../../utils/diagnostics.js";
 import { customElement, state } from "lit/decorators.js";
-import { checkUtmStatus } from "../../api/commands.js";
+import { checkUtmAutomation, checkUtmStatus } from "../../api/commands.js";
 import type { UtmStatus } from "../../api/types.js";
 import { wizardState } from "../../state/wizard-state.js";
 import { openExternalUrl } from "../../utils/external-url.js";
@@ -232,6 +232,10 @@ export class UtmCheckView extends LitElement {
   @state()
   private _error: InstallerError | null = null;
 
+  /** UTM is installed, and macOS may be asking whether the installer can control it */
+  @state()
+  private _askingAutomation = false;
+
   connectedCallback() {
     super.connectedCallback();
     void this._checkStatus();
@@ -245,6 +249,13 @@ export class UtmCheckView extends LitElement {
       const status = await checkUtmStatus();
       this._utmStatus = status;
 
+      // Ask for Automation now, not after the download: a refusal then
+      // costs nothing, and an unnoticed prompt can't stall the install
+      if (status.installed) {
+        this._askingAutomation = true;
+        await checkUtmAutomation();
+      }
+
       // Store UTM installed status in wizard state
       wizardState.setSelection("utmInstalled", status.installed);
     } catch (error) {
@@ -256,6 +267,7 @@ export class UtmCheckView extends LitElement {
       wizardState.setSelection("utmInstalled", false);
     } finally {
       this._loading = false;
+      this._askingAutomation = false;
     }
   }
 
@@ -355,8 +367,17 @@ export class UtmCheckView extends LitElement {
         </div>
         <div class="status-text">
           <p class="status-title">
-            ${localize("views.utm.utm_check_view.checking_for_utm")}
+            ${this._askingAutomation
+              ? localize("views.utm.utm_check_view.allow_control_of_utm")
+              : localize("views.utm.utm_check_view.checking_for_utm")}
           </p>
+          ${this._askingAutomation
+            ? html`<p class="status-description">
+                ${localize(
+                  "views.utm.utm_check_view.allow_control_of_utm_description"
+                )}
+              </p>`
+            : ""}
         </div>
       </div>
     `;

@@ -219,6 +219,10 @@ pub trait UtmBackend {
     /// Check whether UTM is installed and report its status.
     async fn check_utm_status(&self) -> Result<UtmStatus>;
 
+    /// Whether macOS lets the installer control UTM. Asking for the first
+    /// time shows the Automation prompt, and opens UTM.
+    fn check_automation(&self) -> Result<()>;
+
     /// Create a Home Assistant VM in UTM, reporting progress.
     async fn create_vm<P: ProgressCallback>(
         &self,

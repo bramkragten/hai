@@ -356,6 +356,15 @@ export async function checkUtmStatus(): Promise<UtmStatus> {
   return invoke<UtmStatus>("check_utm_status");
 }
 
+/**
+ * Ask macOS whether the installer may control UTM. The first time this shows
+ * the Automation prompt and opens UTM; it resolves once the user answered.
+ */
+export async function checkUtmAutomation(): Promise<void> {
+  if (MOCK_ALLOWED && isBrowserOnly()) return;
+  return invoke<void>("check_utm_automation");
+}
+
 /** Release a temporary image which was not consumed by VM creation. */
 export async function discardUtmImage(imagePath: string): Promise<void> {
   if (MOCK_ALLOWED && isBrowserOnly()) return;
