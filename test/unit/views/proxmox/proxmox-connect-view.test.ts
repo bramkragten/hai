@@ -147,6 +147,10 @@ describe("proxmox-connect-view", () => {
 
     const error = el.shadowRoot!.querySelector(".status-description");
     expect(error!.textContent).to.include("must use HTTPS");
+    // Nothing was tried yet, so it isn't a failed connection
+    expect(
+      el.shadowRoot!.querySelector(".status-title")!.textContent!.trim()
+    ).to.equal("Check the connection details");
   });
 
   it("asks for the missing fields before connecting", async () => {
@@ -157,6 +161,9 @@ describe("proxmox-connect-view", () => {
 
     const error = el.shadowRoot!.querySelector(".status-description");
     expect(error!.textContent).to.include("fill in all fields");
+    expect(
+      el.shadowRoot!.querySelector(".status-title")!.textContent!.trim()
+    ).to.equal("Check the connection details");
   });
 
   /** Count the Next requests the view sends to the wizard. */
@@ -626,6 +633,9 @@ describe("proxmox-connect-view", () => {
     expect(
       el.shadowRoot!.querySelector(".status-description")!.textContent
     ).to.include("Certificate expired");
+    expect(
+      el.shadowRoot!.querySelector(".status-title")!.textContent!.trim()
+    ).to.equal("Connection failed");
   });
 
   it("does not authenticate after removal during the probe or start a duplicate connection", async () => {

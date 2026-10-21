@@ -212,6 +212,7 @@
   "views.proxmox.proxmox_confirm_view.vlan_tag_value": "VLAN tag: {tag}",
   "views.proxmox.proxmox_connect_view.connect_to_proxmox_ve": "Connect to Proxmox VE",
   "views.proxmox.proxmox_connect_view.connection_failed": "Connection failed",
+  "views.proxmox.proxmox_connect_view.check_the_details": "Check the connection details",
   "views.proxmox.proxmox_connect_view.enter_your_password": "Enter your password",
   "views.proxmox.proxmox_connect_view.enter_your_proxmox_server_credentials": "Enter your Proxmox server credentials",
   "views.proxmox.proxmox_connect_view.password": "Password",

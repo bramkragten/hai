@@ -592,6 +592,8 @@ export class ProxmoxConnectView extends LitElement {
   }
 
   private _renderError() {
+    // A field to fix, not a connection that was tried
+    const invalidInput = this._error?.code === INVALID_INPUT;
     return html`
       <div class="status-row" role="alert">
         <div class="status-icon">
@@ -603,12 +605,16 @@ export class ProxmoxConnectView extends LitElement {
         </div>
         <div class="status-text">
           <p class="status-title">
-            ${localize("views.proxmox.proxmox_connect_view.connection_failed")}
+            ${invalidInput
+              ? localize("views.proxmox.proxmox_connect_view.check_the_details")
+              : localize(
+                  "views.proxmox.proxmox_connect_view.connection_failed"
+                )}
           </p>
           <p class="status-description" style="overflow-wrap: anywhere;">
             ${this._error?.message}
           </p>
-          ${this._error?.code === INVALID_INPUT ? "" : renderErrorHelp()}
+          ${invalidInput ? "" : renderErrorHelp()}
         </div>
       </div>
     `;
