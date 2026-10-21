@@ -110,18 +110,11 @@ async fn keep_awake(reason: &str) -> Option<KeepAwake> {
 
 /// Check internet access before starting an installation flow.
 #[tauri::command]
-pub async fn check_connection() -> Result<(), String> {
+pub async fn check_connection() -> Result<(), CommandError> {
     Backend
         .check_connection()
         .await
-        .map_err(connection_error_message)
-}
-
-fn connection_error_message(error: hai_core::Error) -> String {
-    match error {
-        hai_core::Error::DownloadFailed(message) => message,
-        error => error.to_string(),
-    }
+        .map_err(CommandError::from_query)
 }
 
 /// List all block devices
@@ -973,19 +966,21 @@ mod tests {
     }
 
     #[test]
-    fn connection_error_message_unwraps_download_errors() {
-        let message =
-            "Cannot reach version.home-assistant.io. Check your internet connection and try again.";
-        let error = hai_core::Error::DownloadFailed(message.to_string());
-        assert_eq!(connection_error_message(error), message);
-    }
-
-    #[test]
-    fn connection_error_message_preserves_other_errors() {
+    fn unreachable_services_are_retryable_catalog_messages() {
+        let error = CommandError::from_query(hai_core::Error::ServiceUnavailable(
+            hai_core::message!("backend.download.version_service_unreachable"),
+        ));
+        let value = tauri::ipc::InvokeError::from(error).0;
+        assert_eq!(value["code"], "network");
+        assert_eq!(value["retryable"], true);
         assert_eq!(
-            connection_error_message(hai_core::Error::Cancelled),
-            "Operation cancelled"
+            value["details"]["message_key"],
+            "backend.download.version_service_unreachable"
         );
+        assert!(value["message"]
+            .as_str()
+            .unwrap()
+            .contains("version.home-assistant.io"));
     }
 
     #[cfg(feature = "mock")]

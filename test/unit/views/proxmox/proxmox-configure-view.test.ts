@@ -499,7 +499,9 @@ describe("proxmox-configure-view", () => {
       } else {
         expect(selections.proxmoxSession).to.be.undefined;
         expect(selections.proxmoxConnected).to.be.false;
-        expect(el.shadowRoot!.textContent).to.contain("Session expired");
+        expect(el.shadowRoot!.textContent).to.contain(
+          "Your Proxmox session expired"
+        );
         expect(el.shadowRoot!.textContent).to.not.contain("Temporary failure");
         expect(
           el.shadowRoot!.querySelector("wa-button")!.textContent
@@ -761,7 +763,9 @@ describe("proxmox-configure-view", () => {
             "proxmox_list_nodes",
             "proxmox_get_next_vm_id",
           ]);
-          expect(el.shadowRoot!.textContent).to.contain("Session expired");
+          expect(el.shadowRoot!.textContent).to.contain(
+            "Your Proxmox session expired"
+          );
           expect(el.shadowRoot!.textContent).to.not.contain(
             "Temporary failure"
           );

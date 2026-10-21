@@ -297,10 +297,14 @@ fn check_space(path: &Path, required: u64, available: u64) -> Result<()> {
 }
 
 const METADATA_TIMEOUT: Duration = Duration::from_secs(15);
-const CONNECTION_FAILURE_MESSAGE: &str =
-    "Cannot reach version.home-assistant.io. Check your internet connection and try again.";
-const GITHUB_CONNECTION_FAILURE_MESSAGE: &str =
-    "Cannot reach GitHub release information. Check your internet connection and try again.";
+
+fn version_service_unreachable() -> crate::Message {
+    crate::message!("backend.download.version_service_unreachable")
+}
+
+fn github_unreachable() -> crate::Message {
+    crate::message!("backend.download.github_unreachable")
+}
 static RELEASE_CACHE: LazyLock<Mutex<HashMap<String, HaosRelease>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -352,25 +356,25 @@ async fn get_stable_version_from_url(url: &str) -> Result<StableVersionInfo> {
         .timeout(METADATA_TIMEOUT)
         .send()
         .await
-        .map_err(|error| metadata_request_error(error, CONNECTION_FAILURE_MESSAGE))?;
+        .map_err(|error| metadata_request_error(error, version_service_unreachable))?;
 
     if !response.status().is_success() {
-        return Err(Error::DownloadFailed(format!(
-            "Failed to fetch version info: HTTP {}",
-            response.status()
+        return Err(Error::ServiceUnavailable(crate::message!(
+            "backend.download.version_service_unavailable",
+            status = response.status().as_u16(),
         )));
     }
 
     let version_info: StableVersionInfo = response
         .json()
         .await
-        .map_err(|error| metadata_request_error(error, CONNECTION_FAILURE_MESSAGE))?;
+        .map_err(|error| metadata_request_error(error, version_service_unreachable))?;
     Ok(version_info)
 }
 
-fn metadata_request_error(error: reqwest::Error, message: &str) -> Error {
+fn metadata_request_error(error: reqwest::Error, unreachable: fn() -> crate::Message) -> Error {
     if error.is_timeout() || error.is_connect() {
-        Error::DownloadFailed(message.to_string())
+        Error::ServiceUnavailable(unreachable())
     } else {
         error.into()
     }
@@ -387,22 +391,23 @@ async fn check_connection_from_url(url: &str, timeout: Duration) -> Result<()> {
         .timeout(timeout)
         .send()
         .await
-        .map_err(|_| Error::DownloadFailed(CONNECTION_FAILURE_MESSAGE.to_string()))?;
+        .map_err(|_| Error::ServiceUnavailable(version_service_unreachable()))?;
     if !response.status().is_success() {
-        return Err(Error::DownloadFailed(format!(
-            "The Home Assistant version service is unavailable (HTTP {}). Try again later.",
-            response.status()
+        return Err(Error::ServiceUnavailable(crate::message!(
+            "backend.download.version_service_unavailable",
+            status = response.status().as_u16(),
         )));
     }
-    response.json::<StableVersionInfo>().await.map_err(|error| {
-        if error.is_timeout() {
-            return Error::DownloadFailed(CONNECTION_FAILURE_MESSAGE.to_string());
-        }
-        Error::DownloadFailed(
-            "The Home Assistant version service returned an incomplete or invalid response. Check for a network sign-in page and try again."
-                .to_string(),
-        )
-    })?;
+    response
+        .json::<StableVersionInfo>()
+        .await
+        .map_err(|error| {
+            Error::ServiceUnavailable(if error.is_timeout() {
+                version_service_unreachable()
+            } else {
+                crate::message!("backend.download.version_service_invalid_response")
+            })
+        })?;
     Ok(())
 }
 
@@ -467,7 +472,7 @@ async fn fetch_release_from_api(api_base_url: &str, version: &str) -> Result<Hao
         .timeout(METADATA_TIMEOUT)
         .send()
         .await
-        .map_err(|error| metadata_request_error(error, GITHUB_CONNECTION_FAILURE_MESSAGE))?;
+        .map_err(|error| metadata_request_error(error, github_unreachable))?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -497,21 +502,23 @@ async fn fetch_release_from_api(api_base_url: &str, version: &str) -> Result<Hao
                     "GitHub's request limit has been reached for this network. Wait at least {minutes} {unit}, then try again."
                 )));
             }
-            return Err(Error::DownloadFailed(format!(
-                "GitHub refused access to release {version} (HTTP {status}). Try again later or check your network's access to GitHub."
+            return Err(Error::ServiceUnavailable(crate::message!(
+                "backend.download.github_refused",
+                version = version,
+                status = status.as_u16(),
             )));
         }
-        return Err(Error::DownloadFailed(format!(
-            "Failed to fetch release {}: HTTP {}",
-            version,
-            response.status()
+        return Err(Error::ServiceUnavailable(crate::message!(
+            "backend.download.github_release_unavailable",
+            version = version,
+            status = response.status().as_u16(),
         )));
     }
 
     let release: GitHubRelease = response
         .json()
         .await
-        .map_err(|error| metadata_request_error(error, GITHUB_CONNECTION_FAILURE_MESSAGE))?;
+        .map_err(|error| metadata_request_error(error, github_unreachable))?;
     parse_github_release(release, version)
 }
 
@@ -2057,12 +2064,12 @@ mod tests {
                     server.abort();
                     let _ = server.await;
                     let expected = if github {
-                        GITHUB_CONNECTION_FAILURE_MESSAGE
+                        "backend.download.github_unreachable"
                     } else {
-                        CONNECTION_FAILURE_MESSAGE
+                        "backend.download.version_service_unreachable"
                     };
                     assert!(
-                        matches!(&error, Error::DownloadFailed(message) if message == expected)
+                        matches!(&error, Error::ServiceUnavailable(message) if message.key == expected)
                     );
                     assert!(!error.to_string().contains("secret"));
                     assert!(!error.to_string().contains("127.0.0.1"));
@@ -2086,11 +2093,13 @@ mod tests {
                 get_stable_version_from_url(url).await.unwrap_err()
             };
             let expected = if github {
-                GITHUB_CONNECTION_FAILURE_MESSAGE
+                "backend.download.github_unreachable"
             } else {
-                CONNECTION_FAILURE_MESSAGE
+                "backend.download.version_service_unreachable"
             };
-            assert!(matches!(&error, Error::DownloadFailed(message) if message == expected));
+            assert!(
+                matches!(&error, Error::ServiceUnavailable(message) if message.key == expected)
+            );
             assert!(!error.to_string().contains("secret"));
 
             let mut server = mockito::Server::new_async().await;
@@ -3159,7 +3168,12 @@ mod tests {
             assert!(result.is_err());
 
             if let Err(e) = result {
-                assert!(matches!(e, crate::error::Error::DownloadFailed(_)));
+                assert!(matches!(
+                    &e,
+                    crate::error::Error::ServiceUnavailable(message)
+                        if message.key == "backend.download.version_service_unavailable"
+                ));
+                assert!(e.to_string().contains("HTTP 404"), "{e}");
             }
 
             mock.assert_async().await;
@@ -3304,9 +3318,12 @@ mod tests {
             assert!(result.is_err());
 
             if let Err(e) = result {
-                assert!(matches!(e, crate::error::Error::DownloadFailed(_)));
-                let error_msg = format!("{:?}", e);
-                assert!(error_msg.contains("404"));
+                assert!(matches!(
+                    &e,
+                    crate::error::Error::ServiceUnavailable(message)
+                        if message.key == "backend.download.github_release_unavailable"
+                ));
+                assert!(e.to_string().contains("HTTP 404"), "{e}");
             }
 
             mock.assert_async().await;
