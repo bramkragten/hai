@@ -94,7 +94,7 @@ describe("installation confirmation views", () => {
     mockTauriIpc(() => MOCK_HAOS_RELEASE);
     const el = fixtureSync(html`<confirmation-view></confirmation-view>`);
     await settle();
-    return el.shadowRoot!.querySelector(".notice");
+    return el.shadowRoot!.querySelector("inline-notice");
   }
 
   it("warns that a drive without a serial can't be told apart", async () => {

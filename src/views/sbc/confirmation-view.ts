@@ -11,6 +11,7 @@ import {
   installerName,
   type HaHardwareInstaller,
 } from "../ha-hardware/hardware.js";
+import "../../components/inline-notice.js";
 
 @customElement("confirmation-view")
 export class ConfirmationView extends LitElement {
@@ -145,32 +146,8 @@ export class ConfirmationView extends LitElement {
       overflow-wrap: anywhere;
     }
 
-    .notice {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      padding: 1rem;
+    inline-notice {
       margin-top: 1.5rem;
-      background-color: rgba(255, 152, 0, 0.1);
-      border: 1px solid rgba(255, 152, 0, 0.3);
-      border-radius: 8px;
-      max-width: 500px;
-      width: 100%;
-      box-sizing: border-box;
-      font-size: 0.875rem;
-      line-height: 1.5;
-      color: var(--ha-text-color, #212121);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .notice {
-        background-color: rgba(255, 152, 0, 0.15);
-        border-color: rgba(255, 152, 0, 0.4);
-      }
-    }
-
-    .notice p {
-      margin: 0;
     }
 
     .divider {
@@ -397,10 +374,9 @@ export class ConfirmationView extends LitElement {
 
   private _renderNotice(message: string) {
     return html`
-      <div class="notice" role="note">
-        <span aria-hidden="true">⚠️</span>
+      <inline-notice role="note">
         <p>${message}</p>
-      </div>
+      </inline-notice>
     `;
   }
 

@@ -13,7 +13,6 @@ import {
   proxmoxConnect,
 } from "../../api/commands.js";
 import { wizardState } from "../../state/wizard-state.js";
-import "@home-assistant/webawesome/dist/components/callout/callout.js";
 import type WaInput from "@home-assistant/webawesome/dist/components/input/input.js";
 import "@home-assistant/webawesome/dist/components/input/input.js";
 import type WaDialog from "@home-assistant/webawesome/dist/components/dialog/dialog.js";
@@ -75,10 +74,6 @@ export class ProxmoxConnectView extends LitElement {
         background-color: var(--ha-card-background, #1e1e1e);
         border-color: var(--ha-border-color, #333333);
       }
-    }
-
-    wa-callout {
-      padding: 0;
     }
 
     wa-dialog {
