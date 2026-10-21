@@ -301,15 +301,7 @@ fn first_usable_ipv4(output: &str) -> Option<String> {
     output
         .lines()
         .filter_map(|line| line.trim().parse::<std::net::Ipv4Addr>().ok())
-        .find(|ip| {
-            !ip.is_unspecified()
-                && !ip.is_loopback()
-                && !ip.is_link_local()
-                && !ip.is_multicast()
-                && !ip.is_broadcast()
-                && ip.octets()[0] != 0
-                && ip.octets()[0] < 240
-        })
+        .find(|ip| crate::host::is_reachable_vm_address(*ip))
         .map(|ip| ip.to_string())
 }
 
@@ -784,12 +776,25 @@ mod tests {
         ] {
             assert_eq!(first_usable_ipv4(output), None);
         }
-        for ip in ["10.1.2.3", "172.17.0.5", "172.30.32.8", "192.168.1.20"] {
+        for ip in ["10.1.2.3", "172.17.0.5", "172.30.34.8", "192.168.1.20"] {
             assert_eq!(
                 first_usable_ipv4(&format!("fe80::1\n {ip}\n192.168.2.1")),
                 Some(ip.into())
             );
         }
+    }
+
+    #[test]
+    fn address_selection_skips_the_haos_docker_networks() {
+        // Before the LAN lease only HAOS's own bridges have an IPv4 (#369)
+        assert_eq!(
+            first_usable_ipv4("172.30.232.1\n172.30.32.1\nfe80::1"),
+            None
+        );
+        assert_eq!(
+            first_usable_ipv4("172.30.232.1\n172.30.32.1\n192.168.1.20\nfe80::1"),
+            Some("192.168.1.20".into())
+        );
     }
 
     #[test]

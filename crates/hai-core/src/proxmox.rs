@@ -1748,8 +1748,8 @@ async fn get_vm_ip(
     find_vm_ip(&json)
 }
 
-/// The first IPv4 address on a non-loopback interface in a guest agent
-/// `network-get-interfaces` reply.
+/// The first reachable IPv4 address on a non-loopback interface in a guest
+/// agent `network-get-interfaces` reply.
 fn find_vm_ip(json: &serde_json::Value) -> Option<String> {
     let interfaces = json.get("data")?.get("result")?.as_array()?;
 
@@ -1766,10 +1766,13 @@ fn find_vm_ip(json: &serde_json::Value) -> Option<String> {
             if addr.get("ip-address-type").and_then(|t| t.as_str()) != Some("ipv4") {
                 continue;
             }
-            if let Some(ip) = addr.get("ip-address").and_then(|i| i.as_str()) {
-                if !ip.starts_with("127.") {
-                    return Some(ip.to_string());
-                }
+            // Parsed, so only an address ever reaches the http:// links
+            let ip = addr
+                .get("ip-address")
+                .and_then(|i| i.as_str())
+                .and_then(|i| i.parse::<std::net::Ipv4Addr>().ok());
+            if let Some(ip) = ip.filter(|ip| crate::host::is_reachable_vm_address(*ip)) {
+                return Some(ip.to_string());
             }
         }
     }
@@ -5890,6 +5893,43 @@ mod tests {
             ]}});
 
             assert_eq!(find_vm_ip(&json), None);
+        }
+
+        #[test]
+        fn test_find_vm_ip_skips_haos_docker_networks() {
+            // Before the LAN lease only HAOS's own bridges have an IPv4
+            let mut json = serde_json::json!({"data": {"result": [
+                {"name": "enp0s18", "ip-addresses": [
+                    {"ip-address-type": "ipv6", "ip-address": "fe80::1"}
+                ]},
+                {"name": "hassio", "ip-addresses": [
+                    {"ip-address-type": "ipv4", "ip-address": "172.30.32.1"}
+                ]},
+                {"name": "docker0", "ip-addresses": [
+                    {"ip-address-type": "ipv4", "ip-address": "172.30.232.1"}
+                ]}
+            ]}});
+            assert_eq!(find_vm_ip(&json), None);
+
+            json["data"]["result"][0]["ip-addresses"]
+                .as_array_mut()
+                .unwrap()
+                .push(
+                    serde_json::json!({"ip-address-type": "ipv4", "ip-address": "192.168.1.100"}),
+                );
+            assert_eq!(find_vm_ip(&json).as_deref(), Some("192.168.1.100"));
+        }
+
+        #[test]
+        fn test_find_vm_ip_ignores_values_that_are_not_addresses() {
+            let json = serde_json::json!({"data": {"result": [
+                {"name": "eth0", "ip-addresses": [
+                    {"ip-address-type": "ipv4", "ip-address": "10.0.0.5@example.org"},
+                    {"ip-address-type": "ipv4", "ip-address": "10.0.0.6"}
+                ]}
+            ]}});
+
+            assert_eq!(find_vm_ip(&json).as_deref(), Some("10.0.0.6"));
         }
 
         #[tokio::test]
