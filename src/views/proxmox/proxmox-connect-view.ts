@@ -13,7 +13,6 @@ import {
   proxmoxConnect,
 } from "../../api/commands.js";
 import { wizardState } from "../../state/wizard-state.js";
-import "@home-assistant/webawesome/dist/components/callout/callout.js";
 import type WaInput from "@home-assistant/webawesome/dist/components/input/input.js";
 import "@home-assistant/webawesome/dist/components/input/input.js";
 import type WaDialog from "@home-assistant/webawesome/dist/components/dialog/dialog.js";
@@ -75,10 +74,6 @@ export class ProxmoxConnectView extends LitElement {
         background-color: var(--ha-card-background, #1e1e1e);
         border-color: var(--ha-border-color, #333333);
       }
-    }
-
-    wa-callout {
-      padding: 0;
     }
 
     wa-dialog {
@@ -358,27 +353,6 @@ export class ProxmoxConnectView extends LitElement {
         this._totp = "";
         this._connecting = false;
       }
-    }
-  }
-
-  /** Check if form is valid (all required fields filled) */
-  isFormValid(): boolean {
-    if (!this._serverUrl || !this._username || !this._password) {
-      return false;
-    }
-    try {
-      const url = this._serverUrl.trim();
-      const parsed = new URL(url);
-      return (
-        parsed.protocol === "https:" &&
-        !parsed.username &&
-        !parsed.password &&
-        parsed.pathname === "/" &&
-        !parsed.search &&
-        !parsed.hash
-      );
-    } catch {
-      return false;
     }
   }
 
