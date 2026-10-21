@@ -236,17 +236,36 @@ export class UtmCheckView extends LitElement {
   @state()
   private _askingAutomation = false;
 
+  /** Bumped per check, so only the latest one decides */
+  private _check = 0;
+
   connectedCallback() {
     super.connectedCallback();
     void this._checkStatus();
   }
 
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._check++;
+  }
+
   private async _checkStatus() {
+    const check = ++this._check;
+    const flowGeneration = wizardState.flowGeneration;
+    // The Automation prompt can stay open while the user leaves the step;
+    // its answer then belongs to no flow
+    const isCurrent = () =>
+      this.isConnected &&
+      check === this._check &&
+      flowGeneration === wizardState.flowGeneration;
     this._loading = true;
     this._error = null;
+    // Coming back from a later step left this set: Next waits for the check
+    wizardState.setSelection("utmInstalled", false);
 
     try {
       const status = await checkUtmStatus();
+      if (!isCurrent()) return;
       this._utmStatus = status;
 
       // Ask for Automation now, not after the download: a refusal then
@@ -254,20 +273,24 @@ export class UtmCheckView extends LitElement {
       if (status.installed) {
         this._askingAutomation = true;
         await checkUtmAutomation();
+        if (!isCurrent()) return;
       }
 
       // Store UTM installed status in wizard state
       wizardState.setSelection("utmInstalled", status.installed);
     } catch (error) {
-      if (this.isConnected) new InstallDiagnostics("utm").fail(error);
+      if (!isCurrent()) return;
+      new InstallDiagnostics("utm").fail(error);
       this._error = installerError(
         error,
         localize("views.utm.utm_check_view.failed_to_check_utm_status")
       );
       wizardState.setSelection("utmInstalled", false);
     } finally {
-      this._loading = false;
-      this._askingAutomation = false;
+      if (check === this._check) {
+        this._loading = false;
+        this._askingAutomation = false;
+      }
     }
   }
 

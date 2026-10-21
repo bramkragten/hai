@@ -80,6 +80,70 @@ describe("utm-check-view", () => {
     );
   });
 
+  it("keeps Next gated on re-entry until the new check succeeds", async () => {
+    // Back from Configure, where the previous check had allowed Next
+    wizardState.setSelection("utmInstalled", true);
+    const automation = deferred<void>();
+    mockTauriIpc((cmd) => {
+      if (cmd === "check_utm_status")
+        return {
+          installed: true,
+          path: "/Applications/UTM.app",
+          version: "4.5.0",
+        };
+      if (cmd === "check_utm_automation") return automation.promise;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+    fixtureSync(html`<utm-check-view></utm-check-view>`);
+    await settle();
+    expect(wizardState.getState().selections.utmInstalled).to.be.false;
+    automation.resolve();
+    await settle();
+    expect(wizardState.getState().selections.utmInstalled).to.be.true;
+  });
+
+  for (const outcome of ["success", "failure"] as const) {
+    it(`ignores a late Automation ${outcome} after the flow restarted`, async () => {
+      const automation = deferred<void>();
+      let checks = 0;
+      mockTauriIpc((cmd) => {
+        if (cmd === "check_utm_status")
+          return {
+            installed: true,
+            path: "/Applications/UTM.app",
+            version: "4.5.0",
+          };
+        // A late success shows while the new check still waits; a late
+        // failure once the new check has allowed Next
+        if (cmd === "check_utm_automation")
+          return ++checks === 1
+            ? automation.promise
+            : outcome === "success"
+              ? new Promise(() => {})
+              : undefined;
+        throw new Error(`Unexpected IPC command: ${cmd}`);
+      });
+      const old = fixtureSync(html`<utm-check-view></utm-check-view>`);
+      await waitUntil(() => checks === 1);
+      // The user left the step and started the flow again
+      old.remove();
+      wizardState.startFlow("vm");
+      const current = fixtureSync(html`<utm-check-view></utm-check-view>`);
+      await settle();
+      const allowed = outcome === "failure";
+      expect(wizardState.getState().selections.utmInstalled).to.equal(allowed);
+
+      if (outcome === "success") automation.resolve();
+      else
+        automation.reject(ipcError("utm", "Not allowed to control UTM", true));
+      await settle();
+      expect(wizardState.getState().selections.utmInstalled).to.equal(allowed);
+      expect(current.shadowRoot!.querySelector('[role="alert"]')).to.equal(
+        null
+      );
+    });
+  }
+
   it("shows a refused Automation prompt and asks again", async () => {
     let asked = 0;
     mockTauriIpc((cmd) => {
