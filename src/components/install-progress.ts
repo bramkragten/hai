@@ -1,5 +1,9 @@
 import { LitElement, html, css, nothing } from "lit";
-import { formatNumber, localize } from "../localization/localize.js";
+import {
+  formatNumber,
+  localize,
+  localizeContent,
+} from "../localization/localize.js";
 import { customElement, property } from "lit/decorators.js";
 import { formatBytes } from "../api/index.js";
 import {
@@ -323,6 +327,16 @@ export class InstallProgress extends LitElement {
       overflow-wrap: anywhere;
     }
 
+    .address a {
+      color: var(--ha-primary-color, #03a9f4);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .address a:hover {
+      text-decoration: underline;
+    }
+
     .stage-description {
       font-size: 0.9375rem;
       font-weight: 400;
@@ -352,6 +366,8 @@ export class InstallProgress extends LitElement {
   @property({ attribute: false }) error: string | null = null;
   /** Where Home Assistant is being checked, once the VM has an address */
   @property({ attribute: false }) address: string | null = null;
+  /** Leaving no longer stops anything, so the window may close */
+  @property({ type: Boolean }) leavable = false;
 
   render() {
     // The live region stays mounted through errors so a retry is announced
@@ -480,21 +496,23 @@ export class InstallProgress extends LitElement {
       </div>
       ${this.address
         ? html`<p class="address">
-            ${localize("components.install_progress.checking_address", {
-              address: this.address,
+            ${localizeContent("components.install_progress.checking_address", {
+              address: html`<a
+                href=${this.address}
+                @click=${(event: Event) =>
+                  openExternalLink(event, this.address!)}
+                >${this.address}</a
+              >`,
             })}
-            <a
-              href=${this.address}
-              @click=${(event: Event) => openExternalLink(event, this.address!)}
-              >${localize("components.install_progress.open")}</a
-            >
           </p>`
         : nothing}
-      <p class="stage-description">
-        ${localize(
-          "views.proxmox.proxmox_progress_view.please_keep_this_window_open_during_installation"
-        )}
-      </p>
+      ${this.leavable
+        ? nothing
+        : html`<p class="stage-description">
+            ${localize(
+              "views.proxmox.proxmox_progress_view.please_keep_this_window_open_during_installation"
+            )}
+          </p>`}
     `;
   }
 

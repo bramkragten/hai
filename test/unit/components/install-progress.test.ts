@@ -27,7 +27,7 @@ describe("install-progress", () => {
     expect(container.scrollHeight).to.be.greaterThan(container.clientHeight);
   });
 
-  it("shows where Home Assistant is checked, with a link to open it", async () => {
+  it("shows where Home Assistant is checked, as a link to open it", async () => {
     const opened = captureOpenedUrls();
     try {
       const el = await fixture<InstallProgress>(
@@ -41,7 +41,9 @@ describe("install-progress", () => {
       expect(address.textContent).to.contain(
         "Checking Home Assistant at http://192.0.2.50."
       );
-      address.querySelector("a")!.click();
+      const link = address.querySelector("a")!;
+      expect(link.textContent).to.equal("http://192.0.2.50");
+      link.click();
       await settle();
       expect(opened).to.deep.equal(["http://192.0.2.50"]);
 
@@ -52,6 +54,19 @@ describe("install-progress", () => {
     } finally {
       restoreTauriIpc();
     }
+  });
+
+  it("asks to keep the window open only while leaving would stop something", async () => {
+    const el = await fixture<InstallProgress>(
+      html`<install-progress stage="creating_vm"></install-progress>`
+    );
+    const keepOpen = () =>
+      el.shadowRoot!.querySelector(".stage-description")?.textContent ?? "";
+    expect(keepOpen()).to.contain("keep this window open");
+
+    el.leavable = true;
+    await el.updateComplete;
+    expect(keepOpen()).to.equal("");
   });
 
   it("renders the stage labels, active stage and completion", async () => {

@@ -272,7 +272,7 @@ export class AppShell extends LitElement {
     const vmRunning = this._isVmInstallRunning();
 
     // Determine when to hide footer (during active processes)
-    // Once the VM exists, waiting for Home Assistant can take an hour, and
+    // Once the VM runs, waiting for Home Assistant can take an hour, and
     // leaving no longer leaves anything half done
     const hideFooter =
       (flashRunning && this._stoppingFlash) ||
@@ -868,25 +868,21 @@ export class AppShell extends LitElement {
   }
 
   private _onUtmInstallComplete() {
-    this._showLeaveDialog = false;
     // Advance to success step after UTM install completes
     wizardState.nextStep();
   }
 
   private _onUtmInstallError(event: CustomEvent<{ retryable?: boolean }>) {
-    this._showLeaveDialog = false;
     this._installRetryable = event.detail?.retryable === true;
     this._utmInstallError = true;
   }
 
   private _onProxmoxInstallComplete() {
-    this._showLeaveDialog = false;
     // Advance to success step after Proxmox install completes
     wizardState.nextStep();
   }
 
   private _onProxmoxInstallError(event: CustomEvent<{ retryable?: boolean }>) {
-    this._showLeaveDialog = false;
     this._installRetryable = event.detail?.retryable === true;
     this._proxmoxInstallError = true;
   }

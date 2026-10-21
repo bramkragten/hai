@@ -662,7 +662,7 @@ describe("app-shell", () => {
         .be.true;
     });
 
-    it("offers to leave once the VM exists, and leaves it running", async () => {
+    it("offers to leave once the VM runs, and leaves it running", async () => {
       const ready = deferred<boolean>();
       const calls: string[] = [];
       await enterProxmoxInstall(() =>

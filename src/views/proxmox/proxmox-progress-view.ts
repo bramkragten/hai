@@ -562,6 +562,7 @@ export class ProxmoxProgressView extends LitElement {
         .measurable=${this._hasMeasurableProgress(stage)}
         .error=${this._error?.message ?? null}
         .address=${this._checkedAddress(stage)}
+        .leavable=${this.leavable}
       ></install-progress>
     `;
   }

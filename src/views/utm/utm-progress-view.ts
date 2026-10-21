@@ -586,6 +586,7 @@ export class UtmProgressView extends LitElement {
         .hideEmptyDetails=${true}
         .error=${this._error?.message ?? null}
         .address=${this._checkedAddress(stage)}
+        .leavable=${this.leavable}
       ></install-progress>
     `;
   }

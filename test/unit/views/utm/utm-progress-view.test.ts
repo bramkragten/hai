@@ -660,11 +660,16 @@ describe("utm-progress-view", () => {
     await el.updateComplete;
     // The VM exists but isn't started: leaving now would leave it stopped
     expect(el.leavable).to.be.false;
+    const layout = el.shadowRoot!.querySelector("install-progress")!;
+    expect(layout.leavable).to.be.false;
 
     firstStatus.resolve({ status: "stopped", ip_address: null });
     await waitUntil(() => el.leavable, "never leavable after starting the VM");
     expect(calls).to.include("start_utm_vm");
     expect(leavable[leavable.length - 1]).to.be.true;
+    // So the progress stops asking to keep the window open
+    await el.updateComplete;
+    expect(layout.leavable).to.be.true;
     el.remove();
   });
 
