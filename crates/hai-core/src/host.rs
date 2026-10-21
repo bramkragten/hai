@@ -140,6 +140,19 @@ struct ResolutionInfo {
 struct Issue {
     #[serde(rename = "type")]
     kind: IssueType,
+    #[serde(default)]
+    context: IssueContext,
+}
+
+/// Where Supervisor found an issue: only Core's is told apart, the rest is
+/// left behind here and never reaches diagnostics.
+#[derive(Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum IssueContext {
+    Core,
+    #[default]
+    #[serde(other)]
+    Other,
 }
 
 /// The Supervisor issues that can hold up installing Core.
@@ -156,16 +169,20 @@ enum IssueType {
     Other,
 }
 
-impl IssueType {
+impl Issue {
     fn problem(self) -> Option<HaSetupProblem> {
-        Some(match self {
-            Self::DnsServerFailed => HaSetupProblem::DnsServerFailed,
-            Self::NtpSyncFailed => HaSetupProblem::NtpSyncFailed,
-            Self::FreeSpace => HaSetupProblem::FreeSpace,
-            Self::DockerRatelimit => HaSetupProblem::DockerRatelimit,
-            Self::UpdateFailed => HaSetupProblem::UpdateFailed,
-            Self::FatalError => HaSetupProblem::FatalError,
-            Self::Other => return None,
+        Some(match self.kind {
+            IssueType::DnsServerFailed => HaSetupProblem::DnsServerFailed,
+            IssueType::NtpSyncFailed => HaSetupProblem::NtpSyncFailed,
+            IssueType::FreeSpace => HaSetupProblem::FreeSpace,
+            IssueType::DockerRatelimit => HaSetupProblem::DockerRatelimit,
+            IssueType::UpdateFailed => HaSetupProblem::UpdateFailed,
+            // Supervisor also raises it for a plugin or an app repository
+            // that fails, which Core does not wait for
+            IssueType::FatalError if self.context == IssueContext::Core => {
+                HaSetupProblem::FatalError
+            }
+            IssueType::FatalError | IssueType::Other => return None,
         })
     }
 }
@@ -206,12 +223,7 @@ async fn ha_setup_status(ip: &str) -> Option<HaSetupStatus> {
     let mut problems: Vec<_> = offline
         .then_some(HaSetupProblem::NoInternet)
         .into_iter()
-        .chain(
-            resolution
-                .issues
-                .into_iter()
-                .filter_map(|issue| issue.kind.problem()),
-        )
+        .chain(resolution.issues.into_iter().filter_map(Issue::problem))
         .collect();
     problems.sort();
     problems.dedup();
@@ -439,6 +451,41 @@ mod tests {
         assert_eq!(
             ha_setup_status(&server.host_with_port()).await,
             Some(HaSetupStatus::default())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ha_setup_status_takes_only_cores_fatal_error_for_a_failed_start() {
+        let problems = |issues: &'static str| async move {
+            let mut server = Server::new_async().await;
+            supervisor_reply(&mut server, "/jobs/info", r#"{"jobs":[]}"#).await;
+            supervisor_reply(&mut server, "/network/info", ONLINE).await;
+            supervisor_reply(
+                &mut server,
+                "/resolution/info",
+                &format!(r#"{{"issues":{issues}}}"#),
+            )
+            .await;
+            ha_setup_status(&server.host_with_port())
+                .await
+                .unwrap()
+                .problems
+        };
+
+        // An app repository or a plugin that fails doesn't keep Core from starting
+        assert_eq!(
+            problems(
+                r#"[
+                {"type":"fatal_error","context":"store","reference":"https://github.com/hassio-addons/repository","uuid":"a"},
+                {"type":"fatal_error","context":"plugin","reference":"observer","uuid":"b"}]"#
+            )
+            .await,
+            []
+        );
+        assert_eq!(
+            problems(r#"[{"type":"fatal_error","context":"core","reference":null,"uuid":"c"}]"#)
+                .await,
+            [HaSetupProblem::FatalError]
         );
     }
 
