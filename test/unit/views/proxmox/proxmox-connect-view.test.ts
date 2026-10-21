@@ -402,6 +402,9 @@ describe("proxmox-connect-view", () => {
     // Back to the first server, which now shows another certificate
     certificates["https://a.example:8006"] = Array(32).fill("CC").join(":");
     expect(await answer("https://a.example:8006")).to.be.true;
+    // Another spelling of the same address is the same server
+    certificates["https://A.EXAMPLE:8006"] = Array(32).fill("DD").join(":");
+    expect(await answer("https://A.EXAMPLE:8006")).to.be.true;
   });
 
   describe("reconnecting after the session expired", () => {

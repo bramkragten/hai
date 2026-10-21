@@ -21,6 +21,15 @@ import "@home-assistant/webawesome/dist/components/button/button.js";
 
 const INVALID_INPUT = "invalid_input";
 
+/** A certificate belongs to a server, however its address is spelled. */
+function serverOrigin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}
+
 @customElement("proxmox-connect-view")
 export class ProxmoxConnectView extends LitElement {
   protected readonly _accessibility = new ViewAccessibility(this);
@@ -214,8 +223,8 @@ export class ProxmoxConnectView extends LitElement {
 
   private _trustCertificate(url: string, fingerprint?: string | null) {
     if (!fingerprint) return;
-    this._trustedCertificate = { url, fingerprint };
-    this._previousCertificates.set(url, fingerprint);
+    this._trustedCertificate = { url: serverOrigin(url), fingerprint };
+    this._previousCertificates.set(serverOrigin(url), fingerprint);
   }
 
   disconnectedCallback() {
@@ -237,11 +246,14 @@ export class ProxmoxConnectView extends LitElement {
     fingerprint: string
   ): Promise<boolean> {
     const trusted = this._trustedCertificate;
-    if (trusted?.url === url && trusted.fingerprint === fingerprint) {
+    if (
+      trusted?.url === serverOrigin(url) &&
+      trusted.fingerprint === fingerprint
+    ) {
       return true;
     }
 
-    const previous = this._previousCertificates.get(url);
+    const previous = this._previousCertificates.get(serverOrigin(url));
     this._certificate = {
       url,
       fingerprint,
