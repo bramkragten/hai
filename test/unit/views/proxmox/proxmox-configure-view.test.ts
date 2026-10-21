@@ -25,6 +25,13 @@ import {
 } from "../../tauri-ipc.js";
 
 /** Mount the view and wait for the node and storage lookups to settle */
+/** The cores, memory and disk sliders, in the shared resources component */
+async function resourcesOf(el: HTMLElement): Promise<ShadowRoot> {
+  const resources = el.shadowRoot!.querySelector("vm-resources")!;
+  await resources.updateComplete;
+  return resources.shadowRoot!;
+}
+
 async function mount(): Promise<ProxmoxConfigureView> {
   const el = await fixture<ProxmoxConfigureView>(html`
     <proxmox-configure-view></proxmox-configure-view>
@@ -105,7 +112,7 @@ describe("proxmox-configure-view", () => {
 
   it("exposes named controls and announces actual slider sizes", async () => {
     const el = await mount();
-    const sliders = [...el.shadowRoot!.querySelectorAll("wa-slider")];
+    const sliders = [...(await resourcesOf(el)).querySelectorAll("wa-slider")];
     await Promise.all(sliders.map((slider) => slider.updateComplete));
     const snapshot = await fullA11ySnapshot();
     expect(findByRole(snapshot, "textbox").map((node) => node.name)).to.include(
@@ -172,7 +179,7 @@ describe("proxmox-configure-view", () => {
     const el = await mount();
 
     expect(wizardState.getState().selections.cpuCores).to.equal(8);
-    const cores = el.shadowRoot!.querySelector("wa-slider")!;
+    const cores = (await resourcesOf(el)).querySelector("wa-slider")!;
     expect(cores.max).to.equal(3); // 2, 4, 6 and 8 cores
     expect(cores.value).to.equal(3);
   });
@@ -226,7 +233,7 @@ describe("proxmox-configure-view", () => {
     ) as NodeListOf<WaSelect>;
     expect(nodeSelect.value).to.equal("pve2");
     expect(storageSelect.value).to.equal("local-lvm");
-    const text = el.shadowRoot!.textContent!;
+    const text = (await resourcesOf(el)).textContent!;
     expect(text).to.contain("8 cores");
     expect(text).to.contain("8 GB");
     expect(text).to.contain("64 GB");
