@@ -37,6 +37,10 @@
   /* Plain/neutral buttons (Back, Cancel) */
   --wa-color-neutral-on-quiet: var(--ha-secondary-text-color);
 
+  /* Borders of the device and drive cards, wa-select's listbox and
+   * wa-details, so they match every other border */
+  --wa-color-surface-border: var(--ha-border-color);
+
   /* wa-dialog surface/text/backdrop. Web Awesome's own dark tokens are gated
    * to WA's neutral palette, so map them to our theme vars instead. */
   --wa-color-surface-raised: var(--ha-card-background);
