@@ -181,34 +181,35 @@ async fn supervisor_data<T: DeserializeOwned>(ip: &str, path: &str) -> Option<T>
 
 /// What Supervisor reports while it installs Core, through the paths of the
 /// Supervisor API that the landing page passes on without authentication.
-/// They are gone once Core runs, so `None` is expected then.
+/// They are gone once Core runs, so `None` is expected then. It is also
+/// `None` when only some of them answer.
 async fn ha_setup_status(ip: &str) -> Option<HaSetupStatus> {
     let (jobs, network, resolution) = tokio::join!(
         supervisor_data::<JobsInfo>(ip, "/jobs/info"),
         supervisor_data::<NetworkInfo>(ip, "/network/info"),
         supervisor_data::<ResolutionInfo>(ip, "/resolution/info"),
     );
-    if jobs.is_none() && network.is_none() && resolution.is_none() {
+    // A part that doesn't answer would read as no download or no problem,
+    // and clear what an earlier answer showed: only a full answer is news
+    let (Some(jobs), Some(network), Some(resolution)) = (jobs, network, resolution) else {
         return None;
-    }
+    };
 
-    let core_install_progress = jobs.and_then(|info| {
-        info.jobs
-            .into_iter()
-            .find(|job| job.name == CORE_INSTALL_JOB)
-            .map(|job| job.progress.clamp(0.0, 100.0))
-    });
+    let core_install_progress = jobs
+        .jobs
+        .into_iter()
+        .find(|job| job.name == CORE_INSTALL_JOB)
+        .map(|job| job.progress.clamp(0.0, 100.0));
     // Unknown connectivity is not a problem: Supervisor checks it after starting
-    let offline = network.is_some_and(|info| {
-        info.host_internet == Some(false) || info.supervisor_internet == Some(false)
-    });
+    let offline =
+        network.host_internet == Some(false) || network.supervisor_internet == Some(false);
     let mut problems: Vec<_> = offline
         .then_some(HaSetupProblem::NoInternet)
         .into_iter()
         .chain(
             resolution
+                .issues
                 .into_iter()
-                .flat_map(|info| info.issues)
                 .filter_map(|issue| issue.kind.problem()),
         )
         .collect();
@@ -418,8 +419,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ha_setup_status_uses_what_answers() {
+    async fn test_ha_setup_status_takes_unknown_connectivity_for_no_problem() {
         let mut server = Server::new_async().await;
+        supervisor_reply(
+            &mut server,
+            "/jobs/info",
+            r#"{"ignore_conditions":[],"jobs":[]}"#,
+        )
+        .await;
         // Supervisor checks connectivity after starting; until then it is unknown
         supervisor_reply(
             &mut server,
@@ -427,6 +434,18 @@ mod tests {
             r#"{"host_internet":null,"supervisor_internet":null}"#,
         )
         .await;
+        supervisor_reply(&mut server, "/resolution/info", r#"{"issues":[]}"#).await;
+
+        assert_eq!(
+            ha_setup_status(&server.host_with_port()).await,
+            Some(HaSetupStatus::default())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_ha_setup_status_is_none_for_a_partial_answer() {
+        let mut server = Server::new_async().await;
+        supervisor_reply(&mut server, "/network/info", ONLINE).await;
         server
             .mock("GET", "/supervisor-api/jobs/info")
             .with_status(502)
@@ -439,10 +458,8 @@ mod tests {
             .create_async()
             .await;
 
-        assert_eq!(
-            ha_setup_status(&server.host_with_port()).await,
-            Some(HaSetupStatus::default())
-        );
+        // Without the issues, an earlier problem must not read as solved
+        assert_eq!(ha_setup_status(&server.host_with_port()).await, None);
     }
 
     #[tokio::test]

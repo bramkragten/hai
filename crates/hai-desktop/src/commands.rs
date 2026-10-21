@@ -648,8 +648,8 @@ pub async fn check_ha_updated(ip_address: String) -> bool {
     Backend.check_ha_updated(&ip_address).await
 }
 
-/// What Supervisor reports while it installs Home Assistant, or `None` when
-/// no landing page answers
+/// What Supervisor reports while it installs Home Assistant, or `None`
+/// without a full answer from the landing page
 #[tauri::command]
 pub async fn get_ha_setup_status(ip_address: String) -> Option<HaSetupStatus> {
     let status = Backend.ha_setup_status(&ip_address).await;

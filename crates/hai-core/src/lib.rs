@@ -250,7 +250,7 @@ pub trait HostBackend {
     async fn check_ha_updated(&self, ip: &str) -> bool;
 
     /// What Supervisor reports while it installs Core at `ip`, or `None`
-    /// when no landing page answers there.
+    /// without a full answer from a landing page there.
     async fn ha_setup_status(&self, ip: &str) -> Option<HaSetupStatus>;
 }
 

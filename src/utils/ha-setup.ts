@@ -91,49 +91,57 @@ export async function waitForHaSetup(
   { interval, timeout, signal, timeoutMessage, onProgress }: HaSetupWaitOptions
 ): Promise<void> {
   let problemSince: number | null = null;
-  // Any change counts as moving: a download that is tried again starts over
-  let lastProgress: number | null | undefined;
+  // The download moves when its measured progress changes, also when it
+  // starts over. A report without a measurement is not a move.
+  let lastProgress: number | undefined;
   let movedAt = Date.now();
+  // The wait can end while a request is out, cancelled or at its deadline
+  let ended = false;
 
-  await pollUntil(
-    async () => {
-      if (await checkHaUpdated(ipAddress)) return true;
+  try {
+    await pollUntil(
+      async () => {
+        if (await checkHaUpdated(ipAddress)) return true;
 
-      // No answer is no news: what shows, and its clocks, stay as they are
-      const status = await getHaSetupStatus(ipAddress).catch(() => null);
-      // A view detached meanwhile must not hear of it
-      throwIfCancelled(signal);
-      if (!status) return null;
+        // No answer is no news: what shows, and its clocks, stay as they are
+        const status = await getHaSetupStatus(ipAddress).catch(() => null);
+        // A late answer must not reach the view, which may be on a retry by now
+        if (ended) return null;
+        throwIfCancelled(signal);
+        if (!status) return null;
 
-      const now = Date.now();
-      const progress = status.core_install_progress;
-      if (progress !== lastProgress) {
-        lastProgress = progress;
-        movedAt = now;
-      }
-      const problem = status.problems[0] ?? null;
-      // Like the landing page, a download at 0% shows as waiting
-      onProgress({
-        progress: progress !== null && progress > 0 ? progress : null,
-        problem,
-      });
+        const now = Date.now();
+        const progress = status.core_install_progress;
+        if (progress !== null && progress !== lastProgress) {
+          lastProgress = progress;
+          movedAt = now;
+        }
+        const problem = status.problems[0] ?? null;
+        // Like the landing page, a download at 0% shows as waiting
+        onProgress({
+          progress: progress !== null && progress > 0 ? progress : null,
+          problem,
+        });
 
-      if (!problem) {
-        problemSince = null;
+        if (!problem) {
+          problemSince = null;
+          return null;
+        }
+        problemSince ??= now;
+        if (now - Math.max(problemSince, movedAt) >= HA_SETUP_STALL_MS) {
+          throw new HaSetupStalledError(problem, `http://${ipAddress}`);
+        }
         return null;
+      },
+      {
+        interval,
+        timeout,
+        signal,
+        timeoutMessage,
+        stopOn: (error) => error instanceof HaSetupStalledError,
       }
-      problemSince ??= now;
-      if (now - Math.max(problemSince, movedAt) >= HA_SETUP_STALL_MS) {
-        throw new HaSetupStalledError(problem, `http://${ipAddress}`);
-      }
-      return null;
-    },
-    {
-      interval,
-      timeout,
-      signal,
-      timeoutMessage,
-      stopOn: (error) => error instanceof HaSetupStalledError,
-    }
-  );
+    );
+  } finally {
+    ended = true;
+  }
 }

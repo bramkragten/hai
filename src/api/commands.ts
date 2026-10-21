@@ -536,7 +536,8 @@ export async function checkHaUpdated(ipAddress: string): Promise<boolean> {
  * What Supervisor reports while it installs Home Assistant, read from the
  * landing page at the given IP address.
  * @returns The Core download's progress and the problems holding it up, or
- * null when no landing page answers, as once Home Assistant runs
+ * null without a full answer from the landing page, as once Home Assistant
+ * runs
  */
 export async function getHaSetupStatus(
   ipAddress: string

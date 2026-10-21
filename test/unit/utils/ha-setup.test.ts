@@ -6,7 +6,10 @@ import {
   type HaSetupProgress,
 } from "../../../src/utils/ha-setup.js";
 import { installerError } from "../../../src/utils/installer-error.js";
-import { CancelledError } from "../../../src/utils/polling.js";
+import {
+  CancelledError,
+  PollTimeoutError,
+} from "../../../src/utils/polling.js";
 import {
   deferred,
   ipcError,
@@ -140,6 +143,60 @@ describe("ha-setup", () => {
       retryable: true,
       details: {},
     });
+  });
+
+  it("keeps a problem's clock through answers that don't come", async () => {
+    const reported: HaSetupProgress[] = [];
+    const stuck = status(0, "free_space");
+    // Seen at 6 minutes, unanswered at 12 and 18, still there at 24
+    mockSetup([stuck, null, "rejected", stuck, stuck], 6 * MINUTE);
+
+    const error = await stalled(wait(reported));
+
+    expect(error.problem).to.equal("free_space");
+    expect(reported).to.have.length(2);
+  });
+
+  it("doesn't count a report without a measurement as moving", async () => {
+    const reported: HaSetupProgress[] = [];
+    // Measured at 6 minutes, unmeasured at 12, unchanged at 18
+    mockSetup(
+      [50, null, 50, null].map((progress) => status(progress, "update_failed")),
+      6 * MINUTE
+    );
+
+    await stalled(wait(reported));
+
+    expect(reported).to.have.length(3);
+  });
+
+  it("reports nothing that answers after the deadline", async () => {
+    const answer = deferred<HaSetupStatus | null>();
+    mockTauriIpc((cmd) => {
+      if (cmd === "check_ha_updated") return false;
+      if (cmd === "get_ha_setup_status") return answer.promise;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+    const reported: HaSetupProgress[] = [];
+    let error: unknown;
+    try {
+      await waitForHaSetup("192.0.2.50", {
+        interval: 1,
+        timeout: 20,
+        signal: new AbortController().signal,
+        timeoutMessage: "timed out",
+        onProgress: (progress) => reported.push(progress),
+      });
+    } catch (e) {
+      error = e;
+    }
+    expect(error).to.be.instanceOf(PollTimeoutError);
+
+    // The view may be on a retry by now
+    answer.resolve(status(50, "no_internet"));
+    await settle();
+
+    expect(reported).to.be.empty;
   });
 
   it("waits on while the download moves, problem or not", async () => {
