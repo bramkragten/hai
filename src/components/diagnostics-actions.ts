@@ -111,8 +111,7 @@ export class DiagnosticsActions extends LitElement {
   }
 
   private async _report() {
-    const report = this._data ? reportUrl(this._data) : undefined;
-    if (report) await openExternalUrl(report.url);
+    if (this._data) await openExternalUrl(reportUrl(this._data).url);
   }
 
   private _onAfterHide() {
