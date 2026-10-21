@@ -50,6 +50,9 @@ type InstallStage =
 /** Past these, UTM creates the VM, and the install runs to the end */
 const STOPPABLE_STAGES: InstallStage[] = ["downloading", "extracting"];
 
+/** The VM runs and only Home Assistant is awaited, so leaving loses nothing */
+const LEAVABLE_STAGES: InstallStage[] = ["waiting", "ready", "updating"];
+
 /**
  * Whether a failed VM status request cannot succeed by asking again.
  *
@@ -148,6 +151,9 @@ export class UtmProgressView extends LitElement {
   /** What the shell last heard about `stoppable`. */
   private _reportedStoppable?: boolean;
 
+  /** What the shell last heard about `leavable`. */
+  private _reportedLeavable?: boolean;
+
   private _stageStartTime: number | null = null;
   private _diagnostics?: InstallDiagnostics;
   private _stageStartBytes: number = 0;
@@ -157,6 +163,11 @@ export class UtmProgressView extends LitElement {
   /** Whether the install operation has failed */
   get hasError(): boolean {
     return this._error !== null;
+  }
+
+  /** Whether the user can leave with the VM running and nothing left to start */
+  get leavable(): boolean {
+    return this._error === null && LEAVABLE_STAGES.includes(this._stage);
   }
 
   /** Whether `stop` can still end the install before UTM creates anything */
@@ -232,15 +243,28 @@ export class UtmProgressView extends LitElement {
     super.updated(changed);
 
     // The shell offers the stop only while it can still work
-    if (this.stoppable === this._reportedStoppable) return;
-    this._reportedStoppable = this.stoppable;
-    this.dispatchEvent(
-      new CustomEvent("install-stoppable", {
-        detail: { stoppable: this.stoppable },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    if (this.stoppable !== this._reportedStoppable) {
+      this._reportedStoppable = this.stoppable;
+      this.dispatchEvent(
+        new CustomEvent("install-stoppable", {
+          detail: { stoppable: this.stoppable },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+    // And leaving only once the VM runs: a VM that exists but was never
+    // started would stay stopped
+    if (this.leavable !== this._reportedLeavable) {
+      this._reportedLeavable = this.leavable;
+      this.dispatchEvent(
+        new CustomEvent("install-leavable", {
+          detail: { leavable: this.leavable },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
   }
 
   disconnectedCallback() {

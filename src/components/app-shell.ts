@@ -129,6 +129,10 @@ export class AppShell extends LitElement {
   @state()
   private _vmStoppable = false;
 
+  /** Whether the VM runs and only Home Assistant is awaited */
+  @state()
+  private _vmLeavable = false;
+
   @state()
   private _showQuitDialog = false;
 
@@ -272,7 +276,7 @@ export class AppShell extends LitElement {
     // leaving no longer leaves anything half done
     const hideFooter =
       (flashRunning && this._stoppingFlash) ||
-      (vmRunning && !this._vmStoppable && !this._vmCreated());
+      (vmRunning && !this._vmStoppable && !this._vmLeavable);
 
     // Determine when to hide back button
     const hideBack =
@@ -315,6 +319,7 @@ export class AppShell extends LitElement {
         @flash-error=${this._onFlashError}
         @flash-stop-failed=${this._onFlashStopFailed}
         @install-stoppable=${this._onInstallStoppable}
+        @install-leavable=${this._onInstallLeavable}
       >
         ${this._renderWizardStep(flow, currentStep?.id)}
       </wizard-shell>
@@ -517,7 +522,7 @@ export class AppShell extends LitElement {
     }
     if (this._isVmInstallRunning()) {
       if (this._vmStoppable) this._showStopDialog = true;
-      else if (this._vmCreated()) this._showLeaveDialog = true;
+      else if (this._vmLeavable) this._showLeaveDialog = true;
       // Otherwise Cancel showed, but the install moved on to creating the VM
       return;
     }
@@ -538,6 +543,7 @@ export class AppShell extends LitElement {
   private _resetErrorState() {
     this._stoppingFlash = false;
     this._vmStoppable = false;
+    this._vmLeavable = false;
     this._flashError = false;
     this._utmInstallError = false;
     this._proxmoxInstallError = false;
@@ -796,14 +802,6 @@ export class AppShell extends LitElement {
     this._showStopDialog = false;
   }
 
-  /** The VM exists: what is left is waiting for Home Assistant to start. */
-  private _vmCreated(): boolean {
-    const { currentFlow, selections } = this._wizardState;
-    return currentFlow === "vm"
-      ? selections.vmId !== undefined
-      : currentFlow === "proxmox" && selections.proxmoxVmResult !== undefined;
-  }
-
   private _onLeaveInstallation() {
     // Leaving detaches the progress view, which stops its waiting; the VM
     // and Home Assistant carry on
@@ -862,6 +860,11 @@ export class AppShell extends LitElement {
     if (!this._vmStoppable && this._isVmInstallRunning()) {
       this._showStopDialog = false;
     }
+  }
+
+  private _onInstallLeavable(event: CustomEvent<{ leavable: boolean }>) {
+    this._vmLeavable = event.detail.leavable;
+    if (!this._vmLeavable) this._showLeaveDialog = false;
   }
 
   private _onUtmInstallComplete() {

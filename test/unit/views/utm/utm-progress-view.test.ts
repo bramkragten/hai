@@ -635,6 +635,39 @@ describe("utm-progress-view", () => {
     ).to.contain("Open UTM to start it");
   });
 
+  it("only lets the shell offer leaving once the VM was started", async () => {
+    wizardState.setSelection("vmId", "existing-vm");
+    const firstStatus = deferred<{ status: string; ip_address: null }>();
+    let statusCalls = 0;
+    const calls: string[] = [];
+    mockTauriIpc((cmd) => {
+      calls.push(cmd);
+      if (cmd === "get_utm_vm_status")
+        return ++statusCalls === 1
+          ? firstStatus.promise
+          : { status: "started", ip_address: null };
+      if (cmd === "start_utm_vm") return undefined;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+    const leavable: boolean[] = [];
+    const el = mount();
+    el.addEventListener("install-leavable", (event) =>
+      leavable.push(
+        (event as CustomEvent<{ leavable: boolean }>).detail.leavable
+      )
+    );
+    await waitUntil(() => statusCalls === 1);
+    await el.updateComplete;
+    // The VM exists but isn't started: leaving now would leave it stopped
+    expect(el.leavable).to.be.false;
+
+    firstStatus.resolve({ status: "stopped", ip_address: null });
+    await waitUntil(() => el.leavable, "never leavable after starting the VM");
+    expect(calls).to.include("start_utm_vm");
+    expect(leavable[leavable.length - 1]).to.be.true;
+    el.remove();
+  });
+
   it("shows the address it checks while waiting for Home Assistant", async () => {
     wizardState.setSelection("vmId", "existing-vm");
     const ready = deferred<boolean>();
