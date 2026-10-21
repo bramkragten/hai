@@ -531,6 +531,27 @@ describe("proxmox-connect-view", () => {
       expect(await connecting).to.be.false;
       expect(calls).to.not.include("proxmox_connect");
     });
+
+    it("warns when a server the platform trusted shows a certificate it doesn't", async () => {
+      wizardState.setSelection("proxmoxPreviousServer", {
+        server_url: url,
+        certificate_sha256: null,
+      });
+      const untrusted = Array(32).fill("CD").join(":");
+      mockServer(untrusted, []);
+      const { el, inputs } = await renderView();
+      await typeInto(el, inputs[2], "secret");
+      const connecting = el.connect();
+      const dialog = el.shadowRoot!.querySelector("wa-dialog")!;
+      await waitUntil(
+        () =>
+          dialog.querySelector(".fingerprint")!.textContent!.trim() ===
+          untrusted
+      );
+      expect(dialog.querySelector(".certificate-changed")).to.exist;
+      dialog.querySelectorAll("wa-button")[0].click();
+      expect(await connecting).to.be.false;
+    });
   });
 
   for (const action of ["cancel", "dismiss", "disconnect"] as const) {

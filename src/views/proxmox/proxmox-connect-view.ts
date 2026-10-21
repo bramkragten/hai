@@ -175,18 +175,14 @@ export class ProxmoxConnectView extends LitElement {
   private _certificate: {
     url: string;
     fingerprint: string;
-    /** The server showed a different certificate when the user trusted it */
+    /** The server showed another certificate when it was last trusted */
     changed: boolean;
   } | null = null;
 
-  // The certificate the user already trusted for this server, so a second
-  // attempt (an authenticator code, a typo in the password) doesn't ask again
-  private _trustedCertificate: { url: string; fingerprint: string } | null =
-    null;
-
-  // The last certificate trusted for each server, kept when the URL is
-  // edited: a different one for a server is worth a warning, not just a prompt
-  private _previousCertificates = new Map<string, string>();
+  // The last certificate trusted for each server, `null` when the platform
+  // trusted it. The same one again (an authenticator code, a typo in the
+  // password) isn't asked about; a different one is worth a warning.
+  private _trustedCertificates = new Map<string, string | null>();
 
   private _resolveCertificate?: (confirmed: boolean) => void;
   private _connectionAttempt = 0;
@@ -223,9 +219,7 @@ export class ProxmoxConnectView extends LitElement {
   }
 
   private _trustCertificate(url: string, fingerprint?: string | null) {
-    if (!fingerprint) return;
-    this._trustedCertificate = { url: serverOrigin(url), fingerprint };
-    this._previousCertificates.set(serverOrigin(url), fingerprint);
+    this._trustedCertificates.set(serverOrigin(url), fingerprint ?? null);
   }
 
   disconnectedCallback() {
@@ -257,20 +251,10 @@ export class ProxmoxConnectView extends LitElement {
     url: string,
     fingerprint: string
   ): Promise<boolean> {
-    const trusted = this._trustedCertificate;
-    if (
-      trusted?.url === serverOrigin(url) &&
-      trusted.fingerprint === fingerprint
-    ) {
-      return true;
-    }
+    const trusted = this._trustedCertificates.get(serverOrigin(url));
+    if (trusted === fingerprint) return true;
 
-    const previous = this._previousCertificates.get(serverOrigin(url));
-    this._certificate = {
-      url,
-      fingerprint,
-      changed: previous !== undefined && previous !== fingerprint,
-    };
+    this._certificate = { url, fingerprint, changed: trusted !== undefined };
     const confirmed = await new Promise<boolean>((resolve) => {
       this._resolveCertificate = resolve;
     });
@@ -391,8 +375,6 @@ export class ProxmoxConnectView extends LitElement {
   private _onServerUrlChange(e: Event) {
     const input = e.target as WaInput;
     this._serverUrl = input.value ?? "";
-    // A trusted certificate belongs to the server it was shown for
-    this._trustedCertificate = null;
     this._resetConnection();
   }
 

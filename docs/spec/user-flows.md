@@ -245,10 +245,13 @@ wants to compare it with System > Certificates. Credentials are only sent after
 The trusted certificate is pinned for the login session: every later request,
 including uploads and VM API calls, must present exactly that certificate, and
 the TLS handshake signature is still verified. A changed certificate is refused
-and sends the user back to reconnect, where the new certificate gets the same
-question. The answer is remembered for the same server address and certificate,
-so a second attempt (an authenticator code, a mistyped password) doesn't ask
-again. Nothing is saved to disk.
+and sends the user back to reconnect, which starts from the same server and
+user. The certificate trusted before isn't asked about again; a different one,
+or an untrusted one where the platform trusted the certificate before, gets the
+question with a warning that it isn't the certificate the server showed last
+time. The answer is remembered per server origin, so a second attempt (an
+authenticator code, a mistyped password) or editing the address to another
+server and back doesn't ask again. Nothing is saved to disk.
 
 Server URLs must be bare HTTPS origins without embedded credentials, paths,
 queries, or fragments. API redirects are not followed. Proxmox connections are
