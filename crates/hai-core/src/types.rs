@@ -331,10 +331,6 @@ pub struct ProxmoxNode {
     pub cpu_usage: Option<f64>,
     /// Logical CPUs; Proxmox won't start a VM with more cores than this
     pub cpu_count: Option<u32>,
-    /// Memory usage in bytes
-    pub memory_used: Option<u64>,
-    /// Total memory in bytes
-    pub memory_total: Option<u64>,
 }
 
 /// Proxmox storage information
@@ -349,8 +345,6 @@ pub struct ProxmoxStorage {
     pub content: Vec<String>,
     /// Available space in bytes
     pub available: u64,
-    /// Total space in bytes
-    pub total: u64,
     /// Whether storage is active
     pub active: bool,
 }
@@ -391,8 +385,6 @@ pub struct ProxmoxVmConfig {
     pub memory_mb: u32,
     /// Disk size in GB
     pub disk_size_gb: u32,
-    /// Whether to start VM after creation
-    pub auto_start: bool,
 }
 
 /// Proxmox VM creation result
@@ -1034,7 +1026,6 @@ mod tests {
             cpu_cores: 4,
             memory_mb: 4096,
             disk_size_gb: 32,
-            auto_start: true,
         };
         let json = serde_json::to_string(&config).unwrap();
         let parsed: ProxmoxVmConfig = serde_json::from_str(&json).unwrap();
@@ -1042,7 +1033,6 @@ mod tests {
         assert_eq!(parsed.memory_mb, 4096);
         assert_eq!(parsed.cpu_cores, 4);
         assert_eq!(parsed.disk_size_gb, 32);
-        assert!(parsed.auto_start);
     }
 
     #[test]

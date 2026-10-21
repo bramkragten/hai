@@ -586,4 +586,4 @@ async generateQRCodes() {
 
 ## Toolbox Integration
 
-The toolbox button on the welcome screen opens `https://toolbox.openhomefoundation.org/` in the system browser through `openExternalUrl` (`src/utils/external-url.ts`). Nothing is embedded in the app, so the CSP in `tauri.conf.json` sets `frame-src 'none'`.
+The toolbox button on the welcome screen opens `https://toolbox.openhomefoundation.org/` in the system browser through `openExternalUrl` (`src/utils/external-url.ts`). Nothing is embedded in the app, so the CSP in `tauri.conf.json` sets `frame-src 'none'`. Its `connect-src` allows Tauri's IPC protocol (`ipc:` on macOS and Linux, `http://ipc.localhost` on Windows); without it every command falls back to the slower postMessage interface.

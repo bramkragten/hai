@@ -79,150 +79,152 @@ function isSessionExpired(error: unknown): boolean {
 @customElement("proxmox-configure-view")
 export class ProxmoxConfigureView extends LitElement {
   protected readonly _accessibility = new ViewAccessibility(this);
-  static styles = css`
-    ${reducedMotionStyles}
-    :host {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100%;
-    }
-
-    h2 {
-      font-size: 1.5rem;
-      font-weight: 400;
-      color: var(--ha-text-color, #212121);
-      margin: 0 0 0.5rem 0;
-      text-align: center;
-    }
-
-    .subtitle {
-      font-size: 1rem;
-      color: var(--ha-secondary-text-color, #727272);
-      margin: 0 0 1.5rem 0;
-      text-align: center;
-    }
-
-    .config-card {
-      display: flex;
-      flex-direction: column;
-      gap: 1.75rem;
-      padding: 1rem 1.25rem;
-      background-color: var(--ha-card-background, #ffffff);
-      border: 1px solid var(--ha-border-color, #e0e0e0);
-      border-radius: 12px;
-      width: 100%;
-      box-sizing: border-box;
-      max-width: 500px;
-    }
-
-    wa-details {
-      width: 100%;
-      max-width: 500px;
-      margin-top: 1rem;
-      flex-shrink: 0;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .config-card {
-        background-color: var(--ha-card-background, #1e1e1e);
-        border-color: var(--ha-border-color, #333333);
+  static styles = [
+    reducedMotionStyles,
+    css`
+      :host {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100%;
       }
-    }
 
-    .setting-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-    }
+      h2 {
+        font-size: 1.5rem;
+        font-weight: 400;
+        color: var(--ha-text-color, #212121);
+        margin: 0 0 0.5rem 0;
+        text-align: center;
+      }
 
-    .setting-icon {
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
+      .subtitle {
+        font-size: 1rem;
+        color: var(--ha-secondary-text-color, #727272);
+        margin: 0 0 1.5rem 0;
+        text-align: center;
+      }
 
-    .setting-icon svg {
-      width: 22px;
-      height: 22px;
-      fill: var(--ha-secondary-text-color, #727272);
-    }
+      .config-card {
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+        padding: 1rem 1.25rem;
+        background-color: var(--ha-card-background, #ffffff);
+        border: 1px solid var(--ha-border-color, #e0e0e0);
+        border-radius: 12px;
+        width: 100%;
+        box-sizing: border-box;
+        max-width: 500px;
+      }
 
-    .setting-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      min-width: 0;
-    }
+      wa-details {
+        width: 100%;
+        max-width: 500px;
+        margin-top: 1rem;
+        flex-shrink: 0;
+      }
 
-    wa-slider::part(label) {
-      display: block;
-    }
+      @media (prefers-color-scheme: dark) {
+        .config-card {
+          background-color: var(--ha-card-background, #1e1e1e);
+          border-color: var(--ha-border-color, #333333);
+        }
+      }
 
-    .setting-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    }
+      .setting-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
 
-    .setting-label {
-      font-size: 0.9375rem;
-      font-weight: 500;
-      color: var(--ha-text-color, #212121);
-    }
+      .setting-icon {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
 
-    .setting-value {
-      font-size: 0.9375rem;
-      font-weight: 600;
-      color: var(--ha-primary-color, #03a9f4);
-      min-width: 70px;
-      text-align: right;
-    }
+      .setting-icon svg {
+        width: 22px;
+        height: 22px;
+        fill: var(--ha-secondary-text-color, #727272);
+      }
 
-    .setting-description {
-      font-size: 0.75rem;
-      color: var(--ha-secondary-text-color, #9e9e9e);
-      margin: 0;
-      line-height: 1.3;
-    }
+      .setting-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: 0;
+      }
 
-    /* The slider's handle reaches below its track */
-    wa-slider + .setting-description {
-      margin-top: 0.5rem;
-    }
+      wa-slider::part(label) {
+        display: block;
+      }
 
-    .loading-text {
-      font-size: 0.875rem;
-      color: var(--ha-secondary-text-color, #9e9e9e);
-      font-style: italic;
-    }
+      .setting-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
 
-    .error-text {
-      font-size: 0.875rem;
-      color: var(--ha-error-color, #db4437);
-    }
+      .setting-label {
+        font-size: 0.9375rem;
+        font-weight: 500;
+        color: var(--ha-text-color, #212121);
+      }
 
-    .import-setting {
-      gap: 0.75rem;
-      overflow-wrap: anywhere;
-    }
+      .setting-value {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--ha-primary-color, #03a9f4);
+        min-width: 70px;
+        text-align: right;
+      }
 
-    .import-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
+      .setting-description {
+        font-size: 0.75rem;
+        color: var(--ha-secondary-text-color, #9e9e9e);
+        margin: 0;
+        line-height: 1.3;
+      }
 
-    .import-setting a {
-      font-size: 0.875rem;
-      color: var(--ha-primary-color, #03a9f4);
-    }
-  `;
+      /* The slider's handle reaches below its track */
+      wa-slider + .setting-description {
+        margin-top: 0.5rem;
+      }
+
+      .loading-text {
+        font-size: 0.875rem;
+        color: var(--ha-secondary-text-color, #9e9e9e);
+        font-style: italic;
+      }
+
+      .error-text {
+        font-size: 0.875rem;
+        color: var(--ha-error-color, #db4437);
+      }
+
+      .import-setting {
+        gap: 0.75rem;
+        overflow-wrap: anywhere;
+      }
+
+      .import-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .import-setting a {
+        font-size: 0.875rem;
+        color: var(--ha-primary-color, #03a9f4);
+      }
+    `,
+  ];
 
   @state()
   private _wizardState: WizardState = wizardState.getState();
