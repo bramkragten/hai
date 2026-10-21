@@ -197,11 +197,7 @@ export class WelcomeView extends LitElement {
         href="https://www.home-assistant.io/installation/"
         target="_blank"
         rel="noopener noreferrer"
-        @click=${(event: Event) =>
-          openExternalLink(
-            event,
-            "https://www.home-assistant.io/installation/"
-          )}
+        @click=${openExternalLink}
       >
         ${localize(
           "views.welcome_view.learn_more_about_installing_home_assistant"
@@ -213,8 +209,7 @@ export class WelcomeView extends LitElement {
         href="https://www.openhomefoundation.org/"
         target="_blank"
         rel="noopener noreferrer"
-        @click=${(event: Event) =>
-          openExternalLink(event, "https://www.openhomefoundation.org/")}
+        @click=${openExternalLink}
       >
         <img
           class="ohf-logo ohf-logo-light"

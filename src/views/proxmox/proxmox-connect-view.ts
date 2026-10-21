@@ -7,7 +7,7 @@ import { localize, localizeContent } from "../../localization/localize.js";
 import { LitElement, html, css } from "lit";
 import { ViewAccessibility } from "../../utils/view-accessibility.js";
 import { InstallDiagnostics } from "../../utils/diagnostics.js";
-import { customElement, state } from "lit/decorators.js";
+import { customElement, query, state } from "lit/decorators.js";
 import {
   proxmoxCertificateFingerprint,
   proxmoxConnect,
@@ -179,6 +179,9 @@ export class ProxmoxConnectView extends LitElement {
     changed: boolean;
   } | null = null;
 
+  @query('[role="alert"]')
+  private _alert?: HTMLElement;
+
   // The last certificate trusted for each server, `null` when the platform
   // trusted it. The same one again (an authenticator code, a typo in the
   // password) isn't asked about; a different one is worth a warning.
@@ -202,7 +205,7 @@ export class ProxmoxConnectView extends LitElement {
       this._serverUrl = proxmoxSession.server_url;
       this._username = proxmoxUsername ?? this._username;
       this._connected = proxmoxConnected === true;
-      this._trustCertificate(
+      this._rememberCertificate(
         proxmoxSession.server_url,
         proxmoxSession.certificate_sha256
       );
@@ -211,14 +214,14 @@ export class ProxmoxConnectView extends LitElement {
       // server as the same user, and compare the certificate it shows now
       this._serverUrl = proxmoxPreviousServer.server_url;
       this._username = proxmoxUsername ?? this._username;
-      this._trustCertificate(
+      this._rememberCertificate(
         proxmoxPreviousServer.server_url,
         proxmoxPreviousServer.certificate_sha256
       );
     }
   }
 
-  private _trustCertificate(url: string, fingerprint?: string | null) {
+  private _rememberCertificate(url: string, fingerprint?: string | null) {
     this._trustedCertificates.set(serverOrigin(url), fingerprint ?? null);
   }
 
@@ -235,8 +238,12 @@ export class ProxmoxConnectView extends LitElement {
     this._certificate = null;
   }
 
-  private _onCertificateDialogHide() {
+  private _rejectCertificate() {
     this._finishCertificate(false);
+  }
+
+  private _trustCertificate() {
+    this._finishCertificate(true);
   }
 
   private async _onCertificateDialogAfterHide(e: Event) {
@@ -258,7 +265,7 @@ export class ProxmoxConnectView extends LitElement {
     const confirmed = await new Promise<boolean>((resolve) => {
       this._resolveCertificate = resolve;
     });
-    if (confirmed) this._trustCertificate(url, fingerprint);
+    if (confirmed) this._rememberCertificate(url, fingerprint);
     return confirmed;
   }
 
@@ -317,7 +324,7 @@ export class ProxmoxConnectView extends LitElement {
         const confirmed = await this._confirmCertificate(url, fingerprint);
         if (!confirmed || !isCurrent()) return false;
       } else {
-        this._trustCertificate(url, null);
+        this._rememberCertificate(url, null);
       }
       const session = await proxmoxConnect({
         server_url: url,
@@ -398,7 +405,7 @@ export class ProxmoxConnectView extends LitElement {
     await this.updateComplete;
     // An identical validation message does not trigger another Lit update.
     if (this.isConnected) {
-      this.renderRoot.querySelector<HTMLElement>('[role="alert"]')?.focus();
+      this._alert?.focus();
     }
     return false;
   }
@@ -522,7 +529,7 @@ export class ProxmoxConnectView extends LitElement {
           "views.proxmox.proxmox_connect_view.trust_server_title"
         )}
         .open=${this._certificate !== null}
-        @wa-hide=${this._onCertificateDialogHide}
+        @wa-hide=${this._rejectCertificate}
         @wa-after-hide=${this._onCertificateDialogAfterHide}
       >
         <p>
@@ -562,13 +569,13 @@ export class ProxmoxConnectView extends LitElement {
         <wa-button
           slot="footer"
           appearance="outlined"
-          @click=${() => this._finishCertificate(false)}
+          @click=${this._rejectCertificate}
           >${localize("common.cancel")}</wa-button
         >
         <wa-button
           slot="footer"
           variant="brand"
-          @click=${() => this._finishCertificate(true)}
+          @click=${this._trustCertificate}
           >${localize(
             "views.proxmox.proxmox_connect_view.trust_and_connect"
           )}</wa-button

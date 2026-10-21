@@ -163,7 +163,9 @@ test.describe("Proxmox configuration recovery", () => {
       await mockLookupFailure(page, command, true);
       await connect(page);
       const view = page.locator("proxmox-configure-view");
-      await expect(view.getByRole("alert")).toHaveText("Session expired");
+      await expect(view.getByRole("alert")).toHaveText(
+        "Your Proxmox session expired. Reconnect to Proxmox to continue."
+      );
       await expect(
         page.getByRole("button", { name: "Next", exact: true })
       ).toBeDisabled();

@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, queryAll } from "lit/decorators.js";
 import type { WizardStep } from "../state/wizard-state.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { localize } from "../localization/localize.js";
@@ -109,8 +109,11 @@ export class StepIndicator extends LitElement {
   @property({ type: Array })
   steps: WizardStep[] = [];
 
-  @property({ type: Number })
+  @property({ type: Number, attribute: "current-index" })
   currentIndex = 0;
+
+  @queryAll(".step")
+  private _steps!: NodeListOf<HTMLElement>;
 
   private _fitFrame?: number;
 
@@ -144,7 +147,7 @@ export class StepIndicator extends LitElement {
    * current one, so the steps never wrap and push the header taller.
    */
   private _fit() {
-    const steps = this.renderRoot.querySelectorAll<HTMLElement>(".step");
+    const steps = this._steps;
     if (steps.length < 2) return;
     this.removeAttribute("compact");
     const first = steps[0];

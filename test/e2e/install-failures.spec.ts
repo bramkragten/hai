@@ -1,5 +1,10 @@
 import type { Page } from "@playwright/test";
-import { approveProxmoxImport, test, expect } from "./fixtures.js";
+import {
+  approveProxmoxImport,
+  test,
+  expect,
+  skipWifiStep,
+} from "./fixtures.js";
 
 test.use({ platform: "macos" });
 
@@ -63,7 +68,7 @@ for (const scenario of [
       await next(page).click();
       await page.locator("drive-selection-view drive-card").first().click();
       await next(page).click();
-      await expect(page.locator("confirmation-view")).toBeVisible();
+      await skipWifiStep(page);
       await next(page).click();
       await page.locator('confirm-dialog wa-button[variant="danger"]').click();
     } else {
@@ -126,7 +131,7 @@ for (const scenario of [
     if (scenario.recovery === "choose-drive") {
       await page.locator("drive-selection-view drive-card").first().click();
       await next(page).click();
-      await expect(page.locator("confirmation-view")).toBeVisible();
+      await skipWifiStep(page);
       await next(page).click();
       await page.locator('confirm-dialog wa-button[variant="danger"]').click();
     }

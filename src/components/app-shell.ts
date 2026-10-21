@@ -1,6 +1,6 @@
 import { localize } from "../localization/localize.js";
 import { LitElement, html, css, nothing } from "lit";
-import { customElement, state } from "lit/decorators.js";
+import { customElement, query, state } from "lit/decorators.js";
 import "./fab-button.js";
 
 // Import views
@@ -11,6 +11,7 @@ import "../views/other-options-view.js";
 import "../views/sbc/device-selection-view.js";
 import "../views/sbc/drive-selection-view.js";
 import "../views/sbc/confirmation-view.js";
+import "../views/sbc/wifi-view.js";
 import "../views/sbc/progress-view.js";
 import "../views/sbc/success-view.js";
 import "../views/ha-hardware/device-selection-view.js";
@@ -29,7 +30,9 @@ import "../views/proxmox/proxmox-progress-view.js";
 import "../views/proxmox/proxmox-success-view.js";
 
 // Import components
+import type { WizardShell } from "./wizard-shell.js";
 import "./wizard-shell.js";
+import type { ConfirmDialog } from "./confirm-dialog.js";
 import "./confirm-dialog.js";
 import "./info-dialog.js";
 import "./diagnostics-actions.js";
@@ -42,6 +45,7 @@ import {
 } from "../state/wizard-state.js";
 import { listBlockDevices, onCloseBlocked, quitAnyway } from "../api/index.js";
 import { findDrive, readDriveSelection } from "../utils/drive-selection.js";
+import { isValidWifi, selectedWifi } from "../utils/wifi.js";
 import { logFrontendError } from "../utils/diagnostics.js";
 import { openExternalUrl } from "../utils/external-url.js";
 
@@ -128,6 +132,12 @@ export class AppShell extends LitElement {
   @state()
   private _showQuitDialog = false;
 
+  @query("wizard-shell")
+  private _wizardShell?: WizardShell;
+
+  @query("confirm-dialog")
+  private _confirmDialog?: ConfirmDialog;
+
   private _unsubscribe?: () => void;
   private _stopCloseListener?: Promise<() => void>;
   private _pendingFlow?: WizardFlow;
@@ -183,7 +193,7 @@ export class AppShell extends LitElement {
           : localize("components.app_shell.stop_vm_installation_message")}
         .primaryLabel=${localize("components.app_shell.stop_installation")}
         .secondaryLabel=${localize("components.app_shell.keep_installing")}
-        primaryVariant="danger"
+        primary-variant="danger"
         @dialog-primary=${this._onStopInstallation}
         @dialog-secondary=${this._onKeepInstalling}
       ></info-dialog>
@@ -196,7 +206,7 @@ export class AppShell extends LitElement {
         )}
         .primaryLabel=${localize("components.app_shell.quit_anyway")}
         .secondaryLabel=${localize("components.app_shell.keep_installing")}
-        primaryVariant="danger"
+        primary-variant="danger"
         @dialog-primary=${this._onQuitAnyway}
         @dialog-secondary=${this._onKeepInstallingOnQuit}
       ></info-dialog>
@@ -346,6 +356,14 @@ export class AppShell extends LitElement {
       }
     }
 
+    if (
+      (flow === "sbc" || flow === "ha-hardware" || flow === "minipc") &&
+      stepId === "wifi"
+    ) {
+      const wifi = selectedWifi(selections);
+      return wifi !== undefined && !isValidWifi(wifi);
+    }
+
     // VM (UTM) flow - require UTM to be installed on check step
     if (flow === "vm") {
       if (stepId === "check") {
@@ -381,6 +399,8 @@ export class AppShell extends LitElement {
           return html`<device-selection-view></device-selection-view>`;
         case "drive":
           return html`<drive-selection-view></drive-selection-view>`;
+        case "wifi":
+          return html`<wifi-view></wifi-view>`;
         case "confirm":
           return html`<confirmation-view></confirmation-view>`;
         case "flash":
@@ -398,6 +418,8 @@ export class AppShell extends LitElement {
           return html`<ha-hardware-device-selection-view></ha-hardware-device-selection-view>`;
         case "drive":
           return html`<drive-selection-view></drive-selection-view>`;
+        case "wifi":
+          return html`<wifi-view></wifi-view>`;
         case "confirm":
           return html`<confirmation-view></confirmation-view>`;
         case "flash":
@@ -416,6 +438,8 @@ export class AppShell extends LitElement {
           return html`<minipc-architecture-selection-view></minipc-architecture-selection-view>`;
         case "drive":
           return html`<drive-selection-view></drive-selection-view>`;
+        case "wifi":
+          return html`<wifi-view></wifi-view>`;
         case "confirm":
           return html`<confirmation-view></confirmation-view>`;
         case "flash":
@@ -542,8 +566,7 @@ export class AppShell extends LitElement {
         this._goToDriveStep();
         return;
       }
-      const wizardShell = this.shadowRoot?.querySelector("wizard-shell");
-      const progressView = wizardShell?.querySelector("progress-view") as
+      const progressView = this._wizardShell?.querySelector("progress-view") as
         | (HTMLElement & { retry: () => void })
         | null;
       progressView?.retry();
@@ -557,8 +580,7 @@ export class AppShell extends LitElement {
       this._utmInstallError
     ) {
       this._utmInstallError = false;
-      const wizardShell = this.shadowRoot?.querySelector("wizard-shell");
-      const utmProgressView = wizardShell?.querySelector(
+      const utmProgressView = this._wizardShell?.querySelector(
         "utm-progress-view"
       ) as (HTMLElement & { retry: () => void }) | null;
       utmProgressView?.retry();
@@ -572,8 +594,7 @@ export class AppShell extends LitElement {
       this._proxmoxInstallError
     ) {
       this._proxmoxInstallError = false;
-      const wizardShell = this.shadowRoot?.querySelector("wizard-shell");
-      const proxmoxProgressView = wizardShell?.querySelector(
+      const proxmoxProgressView = this._wizardShell?.querySelector(
         "proxmox-progress-view"
       ) as (HTMLElement & { retry: () => void }) | null;
       proxmoxProgressView?.retry();
@@ -582,10 +603,9 @@ export class AppShell extends LitElement {
 
     // Handle Proxmox connection step - connect then proceed if successful
     if (flow === "proxmox" && currentStep?.id === "connection") {
-      const wizardShell = this.shadowRoot?.querySelector("wizard-shell");
-      const connectView = wizardShell?.querySelector("proxmox-connect-view") as
-        | (HTMLElement & { connect: () => Promise<boolean> })
-        | null;
+      const connectView = this._wizardShell?.querySelector(
+        "proxmox-connect-view"
+      ) as (HTMLElement & { connect: () => Promise<boolean> }) | null;
       if (connectView) {
         const generation = wizardState.flowGeneration;
         this._connectingFlow = generation;
@@ -615,9 +635,7 @@ export class AppShell extends LitElement {
       // A problem found now can still be fixed on this step
       this._checkingProxmox = selections;
       try {
-        const view = this.shadowRoot
-          ?.querySelector("wizard-shell")
-          ?.querySelector("proxmox-configure-view");
+        const view = this._wizardShell?.querySelector("proxmox-configure-view");
         if (!(await view?.check())) return;
       } finally {
         if (this._checkingProxmox === selections) {
@@ -718,7 +736,7 @@ export class AppShell extends LitElement {
   private async _onDialogConfirm() {
     if (!this._showConfirmDialog) return;
     const confirmed = this._wizardState;
-    const dialog = this.shadowRoot?.querySelector("confirm-dialog");
+    const dialog = this._confirmDialog;
     if (!dialog) return;
     const closed = new Promise<void>((resolve) => {
       const onHide = (event: Event) => {
@@ -754,6 +772,10 @@ export class AppShell extends LitElement {
   private _onFlashComplete() {
     this._showStopDialog = false;
     this._stoppingFlash = false;
+    // The password is on the drive now; the success step needs only the name
+    const wifi = this._wizardState.selections.wifi;
+    if (wifi)
+      wizardState.setSelection("wifi", { ssid: wifi.ssid, password: "" });
     // Advance to success/done step after flash completes
     wizardState.nextStep();
   }
@@ -784,9 +806,7 @@ export class AppShell extends LitElement {
     // The flash may have ended while the dialog was open
     if (wizardState.currentStep?.id !== "flash" || this._flashError) return;
 
-    const progressView = this.shadowRoot
-      ?.querySelector("wizard-shell")
-      ?.querySelector("progress-view");
+    const progressView = this._wizardShell?.querySelector("progress-view");
     if (!progressView) return;
 
     this._stoppingFlash = true;
@@ -805,7 +825,7 @@ export class AppShell extends LitElement {
   }
 
   private _stopVmInstall() {
-    const wizardShell = this.shadowRoot?.querySelector("wizard-shell");
+    const wizardShell = this._wizardShell;
     const progressView =
       wizardShell?.querySelector("utm-progress-view") ??
       wizardShell?.querySelector("proxmox-progress-view");

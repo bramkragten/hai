@@ -10,11 +10,13 @@ import {
   reducedMotionStyles,
 } from "../../utils/view-accessibility.js";
 import { InstallDiagnostics } from "../../utils/diagnostics.js";
-import { customElement, state } from "lit/decorators.js";
+import { customElement, query, state } from "lit/decorators.js";
 import { getManifest, type Device } from "../../api/index.js";
 import { wizardState } from "../../state/wizard-state.js";
 import { getPlatform } from "../../utils/platform.js";
+import type WaButton from "@home-assistant/webawesome/dist/components/button/button.js";
 import "@home-assistant/webawesome/dist/components/button/button.js";
+import type WaRadioGroup from "@home-assistant/webawesome/dist/components/radio-group/radio-group.js";
 import "@home-assistant/webawesome/dist/components/radio-group/radio-group.js";
 import "@home-assistant/webawesome/dist/components/radio/radio.js";
 
@@ -199,6 +201,12 @@ export class MiniPCArchitectureSelectionView extends LitElement {
   @state()
   private _selectedDeviceId: string | null = null;
 
+  @query("wa-radio-group")
+  private _radioGroup?: WaRadioGroup;
+
+  @query("wa-button")
+  private _button?: WaButton;
+
   connectedCallback() {
     super.connectedCallback();
     void this._loadDevices();
@@ -250,9 +258,7 @@ export class MiniPCArchitectureSelectionView extends LitElement {
     // The setup action is removed on navigation. Give keyboard users a new
     // focus target once the asynchronously loaded architecture choices exist.
     await this.updateComplete;
-    const focusTarget =
-      this.shadowRoot?.querySelector("wa-radio-group") ??
-      this.shadowRoot?.querySelector("wa-button");
+    const focusTarget = this._radioGroup ?? this._button;
     if (focusTarget) {
       await focusTarget.updateComplete;
       if (this.isConnected && document.activeElement === document.body) {

@@ -276,11 +276,7 @@ export class InstallSuccess extends LitElement {
             href="https://apps.apple.com/app/home-assistant/id1099568401"
             target="_blank"
             rel="noopener noreferrer"
-            @click=${(event: Event) =>
-              openExternalLink(
-                event,
-                "https://apps.apple.com/app/home-assistant/id1099568401"
-              )}
+            @click=${openExternalLink}
           >
             ${this._renderAppleIcon()}
             <span
@@ -292,11 +288,7 @@ export class InstallSuccess extends LitElement {
             href="https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"
             target="_blank"
             rel="noopener noreferrer"
-            @click=${(event: Event) =>
-              openExternalLink(
-                event,
-                "https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"
-              )}
+            @click=${openExternalLink}
           >
             ${this._renderGooglePlayIcon()}
             <span

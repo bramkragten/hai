@@ -116,7 +116,8 @@ export class PathSelectionView extends LitElement {
               "views.path_selection_view.home_assistant_green_yellow_or_blue_by_nabu_casa"
             )}
             icon="ha-hardware"
-            @click=${() => this._onSelectPath("ha-hardware")}
+            data-path="ha-hardware"
+            @click=${this._onSelectPath}
           ></option-card>
 
           <option-card
@@ -127,7 +128,8 @@ export class PathSelectionView extends LitElement {
               "views.path_selection_view.single_board_computers_like_raspberry_pi_odroid_and_more"
             )}
             icon="sbc"
-            @click=${() => this._onSelectPath("sbc")}
+            data-path="sbc"
+            @click=${this._onSelectPath}
           ></option-card>
 
           <option-card
@@ -136,7 +138,8 @@ export class PathSelectionView extends LitElement {
               "views.path_selection_view.x86_64_or_arm64_computers_like_beelink_intel_nuc_and_more"
             )}
             icon="minipc"
-            @click=${() => this._onSelectPath("minipc")}
+            data-path="minipc"
+            @click=${this._onSelectPath}
           ></option-card>
 
           <option-card
@@ -145,7 +148,8 @@ export class PathSelectionView extends LitElement {
               "views.path_selection_view.create_a_vm_on_your_proxmox_virtualization_server"
             )}
             icon="proxmox"
-            @click=${() => this._onSelectPath("proxmox")}
+            data-path="proxmox"
+            @click=${this._onSelectPath}
           ></option-card>
 
           ${this._renderVMOption()}
@@ -177,7 +181,8 @@ export class PathSelectionView extends LitElement {
               "views.path_selection_view.run_home_assistant_in_utm_on_your_mac"
             )}
         icon="vm"
-        @click=${() => this._onSelectPath("vm")}
+        data-path="vm"
+        @click=${this._onSelectPath}
       ></option-card>
     `;
   }
@@ -202,7 +207,9 @@ export class PathSelectionView extends LitElement {
     );
   }
 
-  private _onSelectPath(path: InstallationPath) {
+  private _onSelectPath(ev: Event) {
+    const path = (ev.currentTarget as HTMLElement).dataset
+      .path as InstallationPath;
     this.dispatchEvent(
       new CustomEvent("select-path", {
         detail: { path },

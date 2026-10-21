@@ -9,6 +9,7 @@ use crate::command_error::CommandError;
 use crate::diagnostics::Operation;
 use crate::flash_state::FlashState;
 use crate::install_jobs::InstallJobs;
+use hai_core::disk::Image;
 use hai_core::download::TemporaryImage;
 use hai_core::keep_awake::KeepAwake;
 use hai_core::{
@@ -110,18 +111,11 @@ async fn keep_awake(reason: &str) -> Option<KeepAwake> {
 
 /// Check internet access before starting an installation flow.
 #[tauri::command]
-pub async fn check_connection() -> Result<(), String> {
+pub async fn check_connection() -> Result<(), CommandError> {
     Backend
         .check_connection()
         .await
-        .map_err(connection_error_message)
-}
-
-fn connection_error_message(error: hai_core::Error) -> String {
-    match error {
-        hai_core::Error::DownloadFailed(message) => message,
-        error => error.to_string(),
-    }
+        .map_err(CommandError::from_query)
 }
 
 /// List all block devices
@@ -253,6 +247,17 @@ where
         .check_write_privileges()
         .map_err(CommandError::from)?;
 
+    if let Some(wifi) = &request.wifi {
+        // An installer would leave the network behind on the drive it runs from
+        if hai_core::hardware_installer::find(&request.board).is_some() {
+            return Err(hai_core::Error::InvalidConfig(
+                "Wi-Fi can't be set up for this device.".into(),
+            )
+            .into());
+        }
+        hai_core::haos_config::validate(wifi)?;
+    }
+
     // Send initial progress
     callback.on_progress(FlashProgress {
         stage: FlashStage::Downloading,
@@ -315,6 +320,13 @@ where
         .await
         .map_err(CommandError::from)?;
 
+    let mut image = Image::new(&extracted_path);
+    if let Some(wifi) = request.wifi.clone() {
+        image = tokio::task::spawn_blocking(move || hai_core::haos_config::with_wifi(image, &wifi))
+            .await
+            .map_err(|e| hai_core::Error::Io(std::io::Error::other(e)))??;
+    }
+
     // Check image size vs device size
     let image_size = tokio::fs::metadata(&extracted_path)
         .await
@@ -338,7 +350,7 @@ where
     // Write to device
     backend
         .write_image(
-            &extracted_path,
+            &image,
             &request.device_id,
             &request.expected_device,
             request.verify,
@@ -972,19 +984,21 @@ mod tests {
     }
 
     #[test]
-    fn connection_error_message_unwraps_download_errors() {
-        let message =
-            "Cannot reach version.home-assistant.io. Check your internet connection and try again.";
-        let error = hai_core::Error::DownloadFailed(message.to_string());
-        assert_eq!(connection_error_message(error), message);
-    }
-
-    #[test]
-    fn connection_error_message_preserves_other_errors() {
+    fn unreachable_services_are_retryable_catalog_messages() {
+        let error = CommandError::from_query(hai_core::Error::ServiceUnavailable(
+            hai_core::message!("backend.download.version_service_unreachable"),
+        ));
+        let value = tauri::ipc::InvokeError::from(error).0;
+        assert_eq!(value["code"], "network");
+        assert_eq!(value["retryable"], true);
         assert_eq!(
-            connection_error_message(hai_core::Error::Cancelled),
-            "Operation cancelled"
+            value["details"]["message_key"],
+            "backend.download.version_service_unreachable"
         );
+        assert!(value["message"]
+            .as_str()
+            .unwrap()
+            .contains("version.home-assistant.io"));
     }
 
     #[cfg(feature = "mock")]
@@ -1390,7 +1404,7 @@ mod tests {
 
         async fn write_image<P: ProgressCallback>(
             &self,
-            _: &std::path::Path,
+            _: &hai_core::disk::Image,
             _: &str,
             _: &hai_core::ExpectedDevice,
             _: bool,
@@ -1474,6 +1488,7 @@ mod tests {
                 board: "rpi5-64".into(),
                 verify: true,
                 expected_device: ExpectedDevice::default(),
+                wifi: None,
             };
             run_flash(&PreflightBackend { check }, &request, callback).await
         }
@@ -1488,6 +1503,27 @@ mod tests {
             .await
             .unwrap_err();
         assert!(retry.message.contains("release lookup reached"), "{retry}");
+    }
+
+    #[tokio::test]
+    async fn wifi_is_refused_before_anything_is_downloaded() {
+        for (board, password) in [("green-installer", "12345678"), ("rpi5-64", "short")] {
+            let request = FlashRequest {
+                device_id: "unused-device".into(),
+                board: board.into(),
+                verify: true,
+                expected_device: ExpectedDevice::default(),
+                wifi: Some(hai_core::WifiConfig {
+                    ssid: "Home".into(),
+                    password: password.into(),
+                }),
+            };
+            let backend = PreflightBackend { check: || Ok(()) };
+            let error = run_flash(&backend, &request, &NoProgressExpected)
+                .await
+                .unwrap_err();
+            assert_eq!(error.code, "invalid_config", "{board}: {error}");
+        }
     }
 }
 
@@ -1562,7 +1598,7 @@ mod mock_tests {
         }
         async fn write_image<P: ProgressCallback>(
             &self,
-            path: &std::path::Path,
+            image: &hai_core::disk::Image,
             _: &str,
             _: &hai_core::ExpectedDevice,
             _: bool,
@@ -1572,7 +1608,7 @@ mod mock_tests {
                 self.outcome, "oversized",
                 "oversized image reached disk writer"
             );
-            assert_eq!(std::fs::read(path).unwrap(), b"image");
+            assert_eq!(std::fs::read(image.path()).unwrap(), b"image");
             match self.outcome {
                 "write" => Err(hai_core::Error::Io(std::io::Error::other(
                     "test write failure",
@@ -2047,6 +2083,7 @@ mod mock_tests {
                 vendor: device.vendor,
                 serial: device.serial,
             },
+            wifi: None,
         }
     }
 
@@ -2108,7 +2145,7 @@ mod mock_tests {
 
         async fn write_image<P: ProgressCallback>(
             &self,
-            _: &std::path::Path,
+            _: &hai_core::disk::Image,
             _: &str,
             _: &hai_core::ExpectedDevice,
             _: bool,
@@ -2195,6 +2232,19 @@ mod mock_tests {
         assert!(result.duration_secs < 60);
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn run_flash_adds_wifi_against_mock_backend() {
+        let mut request = request("mock-sd-card-32gb", "rpi5-64").await;
+        request.wifi = Some(hai_core::WifiConfig {
+            ssid: "Home".into(),
+            password: "12345678".into(),
+        });
+        run_flash(&BackendMock, &request, &NoOpProgress)
+            .await
+            .unwrap();
+    }
+
     /// Delegates to the mock, but fails any release lookup and records what
     /// was downloaded.
     #[derive(Default)]
@@ -2246,14 +2296,14 @@ mod mock_tests {
         }
         async fn write_image<P: ProgressCallback>(
             &self,
-            path: &std::path::Path,
+            image: &hai_core::disk::Image,
             device_id: &str,
             expected: &hai_core::ExpectedDevice,
             verify: bool,
             callback: &P,
         ) -> hai_core::Result<()> {
             BackendMock
-                .write_image(path, device_id, expected, verify, callback)
+                .write_image(image, device_id, expected, verify, callback)
                 .await
         }
     }
