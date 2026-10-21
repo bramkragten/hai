@@ -1,4 +1,4 @@
-import { type Page, type Locator } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import { test, expect } from "./fixtures.js";
 
 test.use({ platform: "macos" });
@@ -67,66 +67,74 @@ test.describe("UTM Installation Flow", () => {
   });
 
   test("step 1: shows UTM status after check completes", async ({ page }) => {
+    // The browser mock has UTM 4.5.0 installed
     const checkView = page.locator("utm-check-view");
-
-    // Wait for status check to complete
-    await page.waitForTimeout(1500);
-
-    // Should show status row (loading, installed, not installed, or error)
-    const statusRow = checkView.locator(".status-row");
-    await expect(statusRow).toBeVisible();
-
-    // In mock mode, UTM should be detected as installed
-    // Use toContainText which properly checks shadow DOM content
-    // Could show: installed, not installed, loading, or error states
-    const hasValidStatus =
-      (await checkView.getByText("UTM is installed").count()) > 0 ||
-      (await checkView.getByText("not installed").count()) > 0 ||
-      (await checkView.getByText("Checking").count()) > 0 ||
-      (await checkView.getByText("Error").count()) > 0 ||
-      (await checkView.getByText("Ready to create").count()) > 0;
-
-    expect(hasValidStatus).toBe(true);
+    await expect(checkView.locator(".status-title")).toHaveText(
+      "UTM is installed (v4.5.0)"
+    );
+    await expect(checkView).toContainText(
+      "Ready to create a Home Assistant virtual machine"
+    );
+    await expect(checkView.locator("wa-button")).toHaveCount(0);
   });
 
-  test("step 1: shows download button when UTM not installed", async ({
+  test("step 1: offers the UTM download until UTM is installed", async ({
     page,
   }) => {
+    // Answer the UTM check from here, starting with UTM missing
+    await page.evaluate(() => {
+      const testWindow = window as typeof window & {
+        isTauri: boolean;
+        utmInstalled: boolean;
+        __TAURI_INTERNALS__: { invoke: (cmd: string) => Promise<unknown> };
+      };
+      testWindow.utmInstalled = false;
+      testWindow.isTauri = true;
+      testWindow.__TAURI_INTERNALS__ = {
+        invoke: async (cmd) => {
+          if (cmd === "check_utm_status")
+            return testWindow.utmInstalled
+              ? {
+                  installed: true,
+                  path: "/Applications/UTM.app",
+                  version: "4.6.0",
+                }
+              : { installed: false, path: null, version: null };
+          if (cmd === "is_utm_supported") return true;
+          // Connection check and diagnostics
+          return undefined;
+        },
+      };
+    });
+    const wizardShell = page.locator("wizard-shell");
+    await wizardShell.locator(".footer-left wa-button").click();
+    await page.locator("welcome-view").locator("wa-button").click();
+    await page.locator('option-card[title="Virtual machine"]').click();
+
     const checkView = page.locator("utm-check-view");
+    const next = wizardShell.locator(".footer-right wa-button");
+    await expect(checkView.locator(".status-title")).toHaveText(
+      "UTM is not installed"
+    );
+    await expect(
+      checkView.locator("wa-button[appearance='accent']")
+    ).toContainText("Download UTM");
+    await expect(next).toHaveJSProperty("disabled", true);
 
-    // Wait for status check
-    await page.waitForTimeout(1000);
-
-    // If not installed, should show download button
-    const downloadButton = checkView.locator("wa-button[appearance='accent']");
-    const downloadButtonCount = await downloadButton.count();
-
-    if (downloadButtonCount > 0) {
-      await expect(downloadButton).toContainText("Download UTM");
-    }
-  });
-
-  test("step 1: shows refresh button", async ({ page }) => {
-    const checkView = page.locator("utm-check-view");
-
-    // Wait for status check
-    await page.waitForTimeout(1000);
-
-    const refreshButton = checkView.locator("wa-button[appearance='outlined']");
-    const refreshButtonCount = await refreshButton.count();
-
-    // Refresh button appears in both installed and not-installed states
-    if (refreshButtonCount > 0) {
-      await expect(refreshButton).toBeVisible();
-    }
+    // Installed meanwhile: checking again lets the user continue
+    await page.evaluate(() => {
+      (window as typeof window & { utmInstalled: boolean }).utmInstalled = true;
+    });
+    await checkView.locator("wa-button[appearance='outlined']").click();
+    await expect(checkView.locator(".status-title")).toHaveText(
+      "UTM is installed (v4.6.0)"
+    );
+    await expect(next).toHaveJSProperty("disabled", false);
   });
 
   test("step 1: next button state depends on UTM installation", async ({
     page,
   }) => {
-    // Wait for UTM check to complete
-    await page.waitForTimeout(1000);
-
     const nextButton = page
       .locator("wizard-shell")
       .locator(".footer-right wa-button");
@@ -138,9 +146,6 @@ test.describe("UTM Installation Flow", () => {
   test("step 1: can navigate to step 2 when UTM is installed", async ({
     page,
   }) => {
-    // Wait for UTM check
-    await page.waitForTimeout(1000);
-
     const nextButton = page
       .locator("wizard-shell")
       .locator(".footer-right wa-button");
@@ -554,7 +559,6 @@ test.describe("UTM Installation Flow", () => {
   test("complete end-to-end flow", async ({ page }) => {
     // Step 1: Check UTM
     await expect(page.locator("utm-check-view")).toBeVisible();
-    await page.waitForTimeout(1000); // Wait for UTM check
 
     // Verify we can proceed (UTM installed in mock mode)
     const nextButton = page
@@ -596,29 +600,14 @@ test.describe("UTM Installation Flow", () => {
   });
 });
 
-// Playwright's isEnabled()/isDisabled() only understand native/ARIA disabled
-// state, not a custom element's `disabled` property. Read wa-button's property
-// directly instead.
-function buttonDisabled(locator: Locator): Promise<boolean> {
-  return locator.evaluate(
-    (el: HTMLElement & { disabled: boolean }) => el.disabled
-  );
-}
-
 // Helper functions to navigate to specific steps
 async function navigateToUtmStep2(page: Page) {
-  // Wait for UTM check to complete
-  await page.waitForTimeout(1000);
-
   const nextButton = page
     .locator("wizard-shell")
     .locator(".footer-right wa-button");
 
-  // Check if we can proceed (UTM must be installed)
-  if (await buttonDisabled(nextButton)) {
-    throw new Error("Cannot navigate to step 2: UTM not installed");
-  }
-
+  // Enabled once the UTM check found UTM installed
+  await expect(nextButton).toHaveJSProperty("disabled", false);
   await nextButton.click();
   await expect(page.locator("utm-configure-view")).toBeVisible();
 }

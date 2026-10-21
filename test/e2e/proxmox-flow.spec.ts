@@ -118,17 +118,9 @@ test.describe("Proxmox Installation Flow", () => {
     await expect(nextButton).toHaveJSProperty("disabled", false);
     await nextButton.click();
 
-    // In mock mode, connection might succeed or fail depending on implementation
-    // We should either see an error (status-row) or advance to configure view
-    await page.waitForTimeout(2000);
-
-    const onConnectView = await connectView.isVisible();
-    const onConfigureView = await page
-      .locator("proxmox-configure-view")
-      .isVisible();
-
-    // Either stayed on connect (error shown) or advanced to configure (success)
-    expect(onConnectView || onConfigureView).toBe(true);
+    // The browser mock accepts any HTTPS server with a password
+    await expect(page.locator("proxmox-configure-view")).toBeVisible();
+    await expect(connectView).toHaveCount(0);
   });
 
   test("step 1: can navigate to step 2 with valid connection", async ({

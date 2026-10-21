@@ -681,13 +681,8 @@ test.describe("SBC Flashing", () => {
     const progressView = page.locator("progress-view");
     const percentage = progressView.locator(".percentage");
 
-    // Wait a bit for progress to update
-    await page.waitForTimeout(500);
-
-    // Progress should have changed from 0
-    const text = await percentage.textContent();
-    // The percentage should show some progress
-    expect(text).toBeTruthy();
+    // Progress moves past 0% while the mock flash runs
+    await expect(percentage).toHaveText(/^[1-9]\d*%$/);
   });
 
   test("advances to success after flashing completes", async ({ page }) => {
