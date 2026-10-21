@@ -38,18 +38,22 @@ function progressOf(steps: MockStep[], stage?: FlashProgress["stage"]) {
   );
 }
 
+function last<T>(items: T[]): T {
+  return items[items.length - 1];
+}
+
 /** Each stage counts from 0 to 100 on its own, like the backend's. */
 function expectStageLocal(events: FlashProgress[]) {
   const percentages = events.map((event) => event.progress);
   expect(percentages[0]).to.equal(0);
-  expect(percentages.at(-1)).to.equal(100);
+  expect(percentages[percentages.length - 1]).to.equal(100);
   expect(percentages).to.deep.equal([...percentages].sort((a, b) => a - b));
 }
 
 function expectBytes(events: FlashProgress[], total: number) {
   for (const event of events) expect(event.total_bytes).to.equal(total);
   expect(events[0].bytes_processed).to.equal(0);
-  expect(events.at(-1)?.bytes_processed).to.equal(total);
+  expect(events[events.length - 1].bytes_processed).to.equal(total);
 }
 
 describe("api/commands", () => {
@@ -86,7 +90,7 @@ describe("api/commands", () => {
       expectBytes(progressOf(steps, "verifying"), extracted);
       for (const event of progressOf(steps, "finalizing"))
         expect(event.total_bytes).to.equal(0);
-      expect(progressOf(steps).at(-1)).to.include({
+      expect(last(progressOf(steps))).to.include({
         stage: "complete",
         progress: 100,
       });
@@ -151,7 +155,7 @@ describe("api/commands", () => {
       expectBytes(upload, extracted);
       const transfer = upload.slice(0, -1);
       expect(transfer[0].progress).to.equal(5);
-      expect(transfer.at(-1)).to.include({
+      expect(last(transfer)).to.include({
         progress: 95,
         bytes_processed: extracted,
       });
@@ -161,11 +165,11 @@ describe("api/commands", () => {
           Math.round(5 + (event.bytes_processed / extracted) * 90)
         );
       }
-      expect(upload.at(-1)?.progress).to.equal(100);
+      expect(last(upload).progress).to.equal(100);
 
       // Proxmox processes the upload for longer than a transfer step takes
-      const lastTransfer = steps.indexOf(transfer.at(-1)!);
-      const done = steps.indexOf(upload.at(-1)!);
+      const lastTransfer = steps.indexOf(last(transfer));
+      const done = steps.indexOf(last(upload));
       const stepWait = (
         steps[steps.indexOf(transfer[0]) + 1] as { wait: number }
       ).wait;
