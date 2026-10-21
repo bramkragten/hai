@@ -446,6 +446,7 @@
   "utils.installer_error.unexpected": "An unexpected error occurred",
   "utils.installer_error.image_too_large_for_drive": "The image needs {image_size}. This drive holds {drive_size}. Choose a larger drive.",
   "utils.installer_error.image_too_large_with_size": "The image needs {image_size}. Choose a larger drive.",
+  "backend.download.client_unavailable": "The installer couldn't set up its internet connection. Restart it, and report the problem if it continues.",
   "backend.download.version_service_unreachable": "Cannot reach version.home-assistant.io. Check your internet connection and try again.",
   "backend.download.version_service_unavailable": "The Home Assistant version service is unavailable (HTTP {status}). Try again later.",
   "backend.download.version_service_invalid_response": "The Home Assistant version service returned an incomplete or invalid response. Check for a network sign-in page and try again.",

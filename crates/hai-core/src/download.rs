@@ -281,9 +281,12 @@ fn http_client(read_timeout: Duration) -> reqwest::Result<reqwest::Client> {
 }
 
 fn shared_client() -> Result<&'static reqwest::Client> {
-    HTTP_CLIENT.as_ref().map_err(|error| {
-        Error::DownloadFailed(format!("Could not initialize HTTP client: {error}"))
-    })
+    HTTP_CLIENT.as_ref().map_err(|_| client_unavailable())
+}
+
+/// Before any request is made, so neither a download nor a service is to blame.
+fn client_unavailable() -> Error {
+    Error::ServiceUnavailable(crate::message!("backend.download.client_unavailable"))
 }
 
 fn check_space(path: &Path, required: u64, available: u64) -> Result<()> {
@@ -1977,6 +1980,17 @@ mod tests {
             mock.assert_async().await;
             mock.remove_async().await;
         }
+    }
+
+    #[test]
+    fn a_client_that_fails_to_start_is_not_a_failed_download() {
+        let error = client_unavailable();
+        assert!(matches!(
+            &error,
+            Error::ServiceUnavailable(message)
+                if message.key == "backend.download.client_unavailable"
+        ));
+        assert!(!error.to_string().contains("download"), "{error}");
     }
 
     async fn stalled_metadata_server(send_headers: bool) -> (String, tokio::task::JoinHandle<()>) {
