@@ -177,7 +177,6 @@
   "views.proxmox.proxmox_configure_view.value_cores": "{value0, number} cores",
   "views.proxmox.proxmox_configure_view.value_value_free": "{value0} ({value1} free)",
   "views.proxmox.proxmox_configure_view.vm_id": "VM ID",
-  "views.proxmox.proxmox_configure_view.connect_to_proxmox_to_continue": "Connect to Proxmox to continue.",
   "views.proxmox.proxmox_configure_view.failed_to_load_proxmox_configuration": "Failed to load Proxmox configuration",
   "views.proxmox.proxmox_configure_view.reconnect": "Reconnect",
   "views.proxmox.proxmox_configure_view.loading_network_bridges": "Loading network bridges...",

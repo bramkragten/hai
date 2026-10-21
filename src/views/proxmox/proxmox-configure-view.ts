@@ -342,12 +342,12 @@ export class ProxmoxConfigureView extends LitElement {
     const isCurrentSession = () =>
       this._wizardState.selections.proxmoxSession === session;
 
+    // The connect step only moves on with a session, so this follows an
+    // expiry that cleared it, and the expiry text says what to do
     if (!session) {
       this._setError({
         code: SESSION_EXPIRED,
-        message: localize(
-          "views.proxmox.proxmox_configure_view.connect_to_proxmox_to_continue"
-        ),
+        message: localize("utils.installer_error.proxmox_session_expired"),
         retryable: false,
         details: {},
       });
