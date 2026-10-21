@@ -1247,6 +1247,98 @@ mod tests {
 
     // ===== check_ha_ready() Tests =====
 
+    /// The setup statuses recorded in the shared diagnostics tail.
+    #[cfg(not(feature = "mock"))]
+    fn setup_status_lines() -> Vec<String> {
+        crate::diagnostics::test_log_tail()
+            .into_iter()
+            .filter(|line| line.contains(" supervisor "))
+            .collect()
+    }
+
+    #[cfg(not(feature = "mock"))] // asserts on the real backend's answers
+    #[tokio::test]
+    // Isolated from other tests that clear the tail or record setup statuses
+    #[serial_test::serial]
+    async fn ha_setup_status_forwards_a_full_answer_and_records_only_its_categories() {
+        crate::diagnostics::clear_test_log_tail();
+        let mut server = mockito::Server::new_async().await;
+        for (path, data) in [
+            (
+                "jobs",
+                r#"{"jobs":[{"name":"home_assistant_core_install","progress":42.5}]}"#,
+            ),
+            (
+                "network",
+                r#"{"host_internet":false,"supervisor_internet":false}"#,
+            ),
+            (
+                "resolution",
+                r#"{"issues":[{"type":"update_failed","context":"supervisor","reference":"2026.10.3","uuid":"private-uuid"}]}"#,
+            ),
+        ] {
+            server
+                .mock("GET", format!("/supervisor-api/{path}/info").as_str())
+                .with_body(format!(r#"{{"result":"ok","data":{data}}}"#))
+                .create_async()
+                .await;
+        }
+
+        assert_eq!(
+            get_ha_setup_status(server.host_with_port()).await,
+            Some(HaSetupStatus {
+                core_install_progress: Some(42.5),
+                problems: vec![
+                    hai_core::HaSetupProblem::NoInternet,
+                    hai_core::HaSetupProblem::UpdateFailed,
+                ],
+            })
+        );
+        let lines = setup_status_lines();
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(
+            lines[0].ends_with("supervisor core_install=25% problems=[NoInternet, UpdateFailed]"),
+            "{lines:?}"
+        );
+        // Never the address, or Supervisor's references
+        let tail = crate::diagnostics::test_log_tail().join("\n");
+        for private in [
+            server.host_with_port().as_str(),
+            "2026.10.3",
+            "private-uuid",
+        ] {
+            assert!(!tail.contains(private), "{tail}");
+        }
+    }
+
+    #[cfg(not(feature = "mock"))] // asserts on the real backend's answers
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn ha_setup_status_without_a_full_answer_is_none_and_records_nothing() {
+        crate::diagnostics::clear_test_log_tail();
+        // Only the network answers, as while Supervisor restarts
+        let mut partial = mockito::Server::new_async().await;
+        partial
+            .mock("GET", "/supervisor-api/network/info")
+            .with_body(r#"{"result":"ok","data":{"host_internet":false}}"#)
+            .create_async()
+            .await;
+        assert_eq!(get_ha_setup_status(partial.host_with_port()).await, None);
+
+        // And once Core runs, nothing answers
+        let core = mockito::Server::new_async().await;
+        assert_eq!(get_ha_setup_status(core.host_with_port()).await, None);
+
+        assert!(setup_status_lines().is_empty());
+    }
+
+    #[cfg(feature = "mock")]
+    #[tokio::test]
+    async fn ha_setup_status_mock_has_no_landing_page() {
+        // The mock's Home Assistant is ready at once, so its landing page is gone
+        assert_eq!(get_ha_setup_status("192.168.1.100".into()).await, None);
+    }
+
     #[cfg(not(feature = "mock"))] // asserts on the real backend's answers
     #[tokio::test]
     async fn ha_checks_tell_a_web_server_from_a_started_home_assistant() {

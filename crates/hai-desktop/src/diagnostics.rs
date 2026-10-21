@@ -350,9 +350,11 @@ pub(crate) fn test_log_tail() -> Vec<String> {
     TAIL.lock().unwrap().iter().cloned().collect()
 }
 
-#[cfg(all(test, feature = "mock"))]
+/// Start from an empty tail, with no setup status recorded yet.
+#[cfg(test)]
 pub(crate) fn clear_test_log_tail() {
     TAIL.lock().unwrap().clear();
+    *LAST_SETUP_STATUS.lock().unwrap() = None;
 }
 
 #[tauri::command]
@@ -411,11 +413,12 @@ mod tests {
     }
 
     #[test]
-    // A UTM command test clears the shared tail, which would drop these lines
+    // Other tests clear the shared tail, or record setup statuses of their own
     #[serial_test::serial]
     fn setup_status_records_its_changes_as_fixed_categories() {
         use hai_core::{HaSetupProblem, HaSetupStatus};
 
+        clear_test_log_tail();
         let status = |progress, problems: &[HaSetupProblem]| HaSetupStatus {
             core_install_progress: progress,
             problems: problems.to_vec(),
