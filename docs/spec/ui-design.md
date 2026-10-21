@@ -315,7 +315,7 @@ Casita helps make the app feel friendly and approachable, especially for non-tec
 
 ## Toolbox Integration
 
-The Open Home Foundation Toolbox (https://toolbox.openhomefoundation.org/) is accessible via a button in the bottom-right corner of the app.
+The Open Home Foundation Toolbox (https://toolbox.openhomefoundation.org/) is accessible via a button in the bottom-right corner of the welcome screen.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -332,8 +332,7 @@ The Open Home Foundation Toolbox (https://toolbox.openhomefoundation.org/) is ac
 ```
 
 **Behavior:**
-- Clicking the button opens the Toolbox in the user's browser; the installer stays on the step it was on
-- The installer embeds no web content, so offline the browser shows its own error
+- Clicking the button opens the Toolbox in the system browser
 
 ---
 

@@ -132,7 +132,7 @@ test("reduced motion reaches card shadow roots and the FAB button part", async (
       "fab-button",
     ]) {
       const element = document.createElement(tag);
-      element.setAttribute("title", "Test option");
+      element.setAttribute("heading", "Test option");
       element.setAttribute("name", "Test device");
       element.setAttribute("label", "Refresh devices");
       document.body.append(element);
@@ -348,7 +348,7 @@ for (const tag of [
     );
     await expect(page.locator(".cloud-text")).toHaveCSS(
       "color",
-      "rgb(0, 65, 86)"
+      "rgb(255, 255, 255)"
     );
     await expect(page.getByRole("progressbar")).toHaveAttribute(
       "aria-valuenow",
