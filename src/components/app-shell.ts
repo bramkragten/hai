@@ -295,6 +295,9 @@ export class AppShell extends LitElement {
       (flow === "vm" && currentStep?.id === "install") ||
       (flow === "proxmox" && currentStep?.id === "install");
 
+    // Done already returns to the start, so Cancel would only repeat it
+    const hideCancel = currentStep?.id === "success";
+
     // Determine when to hide next button
     const hideNext =
       flashRunning ||
@@ -322,6 +325,7 @@ export class AppShell extends LitElement {
         .hideFooter=${hideFooter}
         .hideBack=${hideBack}
         .hideNext=${hideNext}
+        .hideCancel=${hideCancel}
         @wizard-cancel=${this._onWizardCancel}
         @wizard-exit=${this._onWizardExit}
         @wizard-next=${this._onWizardNext}

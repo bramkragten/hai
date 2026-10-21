@@ -28,6 +28,7 @@ interface WizardShell extends HTMLElement {
   nextDisabled: boolean;
   hideFooter: boolean;
   hideNext: boolean;
+  hideCancel: boolean;
 }
 
 interface ErrorFlags {
@@ -377,6 +378,15 @@ describe("app-shell", () => {
     expect(shellOf(el)).to.equal(null);
     expect(wizardState.getState().currentFlow).to.equal(null);
     expect(wizardState.getState().selections).to.deep.equal({});
+  });
+
+  it("offers only Done once the installation succeeded", async () => {
+    await enterSbcFlow(el);
+    expect(shellOf(el).hideCancel).to.be.false;
+
+    await goToStep(el, "success");
+    expect(shellOf(el).hideCancel).to.be.true;
+    expect(shellOf(el).nextLabel).to.equal("Done");
   });
 
   it("does not hold up a new flow with a Proxmox connect left behind", async () => {
