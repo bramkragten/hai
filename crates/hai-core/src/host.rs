@@ -144,11 +144,12 @@ struct Issue {
     context: IssueContext,
 }
 
-/// Where Supervisor found an issue: only Core's is told apart, the rest is
-/// left behind here and never reaches diagnostics.
+/// Where Supervisor found an issue: only Supervisor's and Core's are told
+/// apart, the rest is left behind here and never reaches diagnostics.
 #[derive(Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 enum IssueContext {
+    Supervisor,
     Core,
     #[default]
     #[serde(other)]
@@ -176,13 +177,19 @@ impl Issue {
             IssueType::NtpSyncFailed => HaSetupProblem::NtpSyncFailed,
             IssueType::FreeSpace => HaSetupProblem::FreeSpace,
             IssueType::DockerRatelimit => HaSetupProblem::DockerRatelimit,
-            IssueType::UpdateFailed => HaSetupProblem::UpdateFailed,
+            // Core installs once Supervisor is up to date. A plugin's update
+            // fails without holding it up.
+            IssueType::UpdateFailed
+                if matches!(self.context, IssueContext::Supervisor | IssueContext::Core) =>
+            {
+                HaSetupProblem::UpdateFailed
+            }
             // Supervisor also raises it for a plugin or an app repository
             // that fails, which Core does not wait for
             IssueType::FatalError if self.context == IssueContext::Core => {
                 HaSetupProblem::FatalError
             }
-            IssueType::FatalError | IssueType::Other => return None,
+            IssueType::UpdateFailed | IssueType::FatalError | IssueType::Other => return None,
         })
     }
 }
@@ -455,8 +462,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ha_setup_status_takes_only_cores_fatal_error_for_a_failed_start() {
-        let problems = |issues: &'static str| async move {
+    async fn test_ha_setup_status_leaves_out_failures_core_does_not_wait_for() {
+        let problems = |issues: String| async move {
             let mut server = Server::new_async().await;
             supervisor_reply(&mut server, "/jobs/info", r#"{"jobs":[]}"#).await;
             supervisor_reply(&mut server, "/network/info", ONLINE).await;
@@ -472,21 +479,36 @@ mod tests {
                 .problems
         };
 
-        // An app repository or a plugin that fails doesn't keep Core from starting
+        // An app repository or a plugin that fails, or a plugin's update,
+        // doesn't keep Core from installing and starting
         assert_eq!(
             problems(
                 r#"[
                 {"type":"fatal_error","context":"store","reference":"https://github.com/hassio-addons/repository","uuid":"a"},
-                {"type":"fatal_error","context":"plugin","reference":"observer","uuid":"b"}]"#
+                {"type":"fatal_error","context":"plugin","reference":"observer","uuid":"b"},
+                {"type":"update_failed","context":"plugin","reference":"audio","uuid":"c"}]"#
+                    .into()
             )
             .await,
             []
         );
         assert_eq!(
-            problems(r#"[{"type":"fatal_error","context":"core","reference":null,"uuid":"c"}]"#)
-                .await,
+            problems(
+                r#"[{"type":"fatal_error","context":"core","reference":null,"uuid":"d"}]"#.into()
+            )
+            .await,
             [HaSetupProblem::FatalError]
         );
+        for context in ["supervisor", "core"] {
+            assert_eq!(
+                problems(format!(
+                    r#"[{{"type":"update_failed","context":"{context}","reference":null,"uuid":"e"}}]"#
+                ))
+                .await,
+                [HaSetupProblem::UpdateFailed],
+                "{context}"
+            );
+        }
     }
 
     #[tokio::test]

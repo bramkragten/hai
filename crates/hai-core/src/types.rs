@@ -516,7 +516,7 @@ pub enum HaSetupProblem {
     FreeSpace,
     /// The container registry limits the pulls.
     DockerRatelimit,
-    /// Downloading an update failed.
+    /// Downloading an update of Supervisor or Core failed.
     UpdateFailed,
     /// Home Assistant Core failed to start.
     FatalError,
