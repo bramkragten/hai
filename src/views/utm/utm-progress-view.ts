@@ -561,8 +561,17 @@ export class UtmProgressView extends LitElement {
         .measurable=${this._hasMeasurableProgress(stage)}
         .hideEmptyDetails=${true}
         .error=${this._error?.message ?? null}
+        .address=${this._checkedAddress(stage)}
       ></install-progress>
     `;
+  }
+
+  /** The address Home Assistant is checked at, to open it meanwhile */
+  private _checkedAddress(stage: string): string | null {
+    const ip = this._wizardState.selections.ipAddress;
+    return ip && (stage === "ready" || stage === "updating")
+      ? `http://${ip}`
+      : null;
   }
 
   private _getStageTitle(stage: string): string {

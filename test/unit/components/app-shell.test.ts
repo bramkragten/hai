@@ -662,6 +662,49 @@ describe("app-shell", () => {
         .be.true;
     });
 
+    it("offers to leave once the VM exists, and leaves it running", async () => {
+      const ready = deferred<boolean>();
+      const calls: string[] = [];
+      await enterProxmoxInstall(() =>
+        mockTauriIpc((cmd) => {
+          calls.push(cmd);
+          if (cmd === "proxmox_create_vm") return { vm_id: 100, node: "pve" };
+          if (cmd === "proxmox_get_vm_status")
+            return { status: "running", ip_address: "192.0.2.50" };
+          // Home Assistant is still starting
+          if (cmd === "check_ha_ready") return ready.promise;
+          throw new Error(`Unexpected IPC command: ${cmd}`);
+        })
+      );
+      await waitUntil(
+        () => calls.includes("check_ha_ready") && !shellOf(el).hideFooter,
+        "Cancel never came back once the VM existed"
+      );
+      expect(shellOf(el).hideNext).to.be.true;
+      const leaveDialog = el.shadowRoot!.querySelector(
+        "info-dialog.leave-dialog"
+      ) as InfoDialog;
+
+      fire(shellOf(el), "wizard-cancel");
+      await el.updateComplete;
+      expect(leaveDialog.open).to.be.true;
+      expect(stopDialogOf(el).open).to.be.false;
+      expect(leaveDialog.heading).to.equal("Leave the installation?");
+      expect(leaveDialog.message).to.contain("http://192.0.2.50");
+
+      fire(leaveDialog, "dialog-secondary");
+      await el.updateComplete;
+      expect(leaveDialog.open).to.be.false;
+      expect(wizardState.currentStep?.id).to.equal("install");
+
+      fire(shellOf(el), "wizard-cancel");
+      await el.updateComplete;
+      fire(leaveDialog, "dialog-primary");
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector("welcome-view")).to.exist;
+      expect(wizardState.getState().selections.proxmoxVmResult).to.be.undefined;
+    });
+
     it("hides Cancel once the VM is being created", async () => {
       let report!: (stage: string) => void;
       await enterProxmoxInstall(() =>

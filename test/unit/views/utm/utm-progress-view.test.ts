@@ -4,6 +4,7 @@ import {
   fixtureSync,
   html,
   oneEvent,
+  waitUntil,
 } from "@open-wc/testing";
 import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/utm/utm-progress-view.js";
@@ -632,6 +633,25 @@ describe("utm-progress-view", () => {
         .shadowRoot!.querySelector("install-progress")!
         .shadowRoot!.querySelector(".error-message")!.textContent
     ).to.contain("Open UTM to start it");
+  });
+
+  it("shows the address it checks while waiting for Home Assistant", async () => {
+    wizardState.setSelection("vmId", "existing-vm");
+    const ready = deferred<boolean>();
+    mockTauriIpc((cmd) => {
+      if (cmd === "get_utm_vm_status")
+        return { status: "started", ip_address: "192.0.2.50" };
+      if (cmd === "check_ha_ready") return ready.promise;
+      throw new Error(`Unexpected IPC command: ${cmd}`);
+    });
+    const el = mount();
+    await el.updateComplete;
+    const layout = el.shadowRoot!.querySelector("install-progress")!;
+    // Only once the VM has an address and Home Assistant is checked there
+    expect(layout.address).to.be.null;
+    await waitUntil(() => layout.address === "http://192.0.2.50");
+    expect(layout.stage).to.equal("ready");
+    el.remove();
   });
 
   it("allows a timed-out readiness check to resume the existing VM", async () => {

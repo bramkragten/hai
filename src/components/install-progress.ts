@@ -9,6 +9,7 @@ import {
 } from "./install-mascot.js";
 import "./progress-bar.js";
 import { renderErrorHelp } from "../utils/installer-error.js";
+import { openExternalLink } from "../utils/external-url.js";
 import {
   LiveStatus,
   ReducedSvgMotion,
@@ -314,6 +315,14 @@ export class InstallProgress extends LitElement {
       left: 30px;
     }
 
+    .address {
+      font-size: 0.9375rem;
+      color: var(--ha-secondary-text-color, #727272);
+      margin: 0 0 1rem 0;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+
     .stage-description {
       font-size: 0.9375rem;
       font-weight: 400;
@@ -341,6 +350,8 @@ export class InstallProgress extends LitElement {
   @property({ type: Boolean }) showUnknownBytes = false;
   @property({ type: Boolean }) hideEmptyDetails = false;
   @property({ attribute: false }) error: string | null = null;
+  /** Where Home Assistant is being checked, once the VM has an address */
+  @property({ attribute: false }) address: string | null = null;
 
   render() {
     // The live region stays mounted through errors so a retry is announced
@@ -467,6 +478,18 @@ export class InstallProgress extends LitElement {
             `
           : ""}
       </div>
+      ${this.address
+        ? html`<p class="address">
+            ${localize("components.install_progress.checking_address", {
+              address: this.address,
+            })}
+            <a
+              href=${this.address}
+              @click=${(event: Event) => openExternalLink(event, this.address!)}
+              >${localize("components.install_progress.open")}</a
+            >
+          </p>`
+        : nothing}
       <p class="stage-description">
         ${localize(
           "views.proxmox.proxmox_progress_view.please_keep_this_window_open_during_installation"
