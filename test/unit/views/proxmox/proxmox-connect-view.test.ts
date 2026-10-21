@@ -363,6 +363,47 @@ describe("proxmox-connect-view", () => {
     expect(attempts).to.equal(4);
   });
 
+  it("still warns about a changed certificate after trying another server", async () => {
+    const certificates: Record<string, string> = {
+      "https://a.example:8006": Array(32).fill("AA").join(":"),
+      "https://b.example:8006": Array(32).fill("BB").join(":"),
+    };
+    mockTauriIpc((cmd, args) => {
+      if (cmd === "proxmox_certificate_fingerprint")
+        return certificates[(args as { serverUrl: string }).serverUrl];
+      // Every login needs another try, so the view stays put
+      throw {
+        code: "proxmox_two_factor",
+        message: "This account requires an authenticator app code.",
+        retryable: false,
+        details: {},
+      };
+    });
+    const { el, inputs } = await renderView();
+    await typeInto(el, inputs[2], "secret");
+    const dialog = el.shadowRoot!.querySelector("wa-dialog")!;
+    const answer = async (url: string) => {
+      await typeInto(el, inputs[0], url);
+      const connecting = el.connect();
+      await waitUntil(
+        () =>
+          dialog.querySelector(".fingerprint")!.textContent!.trim() ===
+          certificates[url],
+        `no certificate prompt for ${url}`
+      );
+      const changed = !!dialog.querySelector(".certificate-changed");
+      dialog.querySelectorAll("wa-button")[1].click();
+      await connecting;
+      return changed;
+    };
+
+    expect(await answer("https://a.example:8006")).to.be.false;
+    expect(await answer("https://b.example:8006")).to.be.false;
+    // Back to the first server, which now shows another certificate
+    certificates["https://a.example:8006"] = Array(32).fill("CC").join(":");
+    expect(await answer("https://a.example:8006")).to.be.true;
+  });
+
   describe("reconnecting after the session expired", () => {
     const url = "https://pve.example:8006";
     const trusted = Array(32).fill("AB").join(":");

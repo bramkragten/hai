@@ -174,10 +174,9 @@ export class ProxmoxConnectView extends LitElement {
   private _trustedCertificate: { url: string; fingerprint: string } | null =
     null;
 
-  // The last certificate trusted for a server, kept when the URL is edited:
-  // a different one for that server is worth a warning, not just a prompt
-  private _previousCertificate: { url: string; fingerprint: string } | null =
-    null;
+  // The last certificate trusted for each server, kept when the URL is
+  // edited: a different one for a server is worth a warning, not just a prompt
+  private _previousCertificates = new Map<string, string>();
 
   private _resolveCertificate?: (confirmed: boolean) => void;
   private _connectionAttempt = 0;
@@ -216,7 +215,7 @@ export class ProxmoxConnectView extends LitElement {
   private _trustCertificate(url: string, fingerprint?: string | null) {
     if (!fingerprint) return;
     this._trustedCertificate = { url, fingerprint };
-    this._previousCertificate = { url, fingerprint };
+    this._previousCertificates.set(url, fingerprint);
   }
 
   disconnectedCallback() {
@@ -242,11 +241,11 @@ export class ProxmoxConnectView extends LitElement {
       return true;
     }
 
-    const previous = this._previousCertificate;
+    const previous = this._previousCertificates.get(url);
     this._certificate = {
       url,
       fingerprint,
-      changed: previous?.url === url && previous.fingerprint !== fingerprint,
+      changed: previous !== undefined && previous !== fingerprint,
     };
     const confirmed = await new Promise<boolean>((resolve) => {
       this._resolveCertificate = resolve;
