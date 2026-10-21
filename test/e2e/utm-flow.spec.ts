@@ -86,9 +86,11 @@ test.describe("UTM Installation Flow", () => {
       const testWindow = window as typeof window & {
         isTauri: boolean;
         utmInstalled: boolean;
+        unexpectedCommands: string[];
         __TAURI_INTERNALS__: { invoke: (cmd: string) => Promise<unknown> };
       };
       testWindow.utmInstalled = false;
+      testWindow.unexpectedCommands = [];
       testWindow.isTauri = true;
       testWindow.__TAURI_INTERNALS__ = {
         invoke: async (cmd) => {
@@ -100,8 +102,11 @@ test.describe("UTM Installation Flow", () => {
                   version: "4.6.0",
                 }
               : { installed: false, path: null, version: null };
-          if (cmd === "is_utm_supported") return true;
-          // Connection check and diagnostics
+          if (cmd === "utm_supported") return true;
+          if (cmd === "check_connection" || cmd === "log_frontend_event")
+            return undefined;
+          // A misspelled command would otherwise pass as "no answer"
+          testWindow.unexpectedCommands.push(cmd);
           return undefined;
         },
       };
@@ -109,7 +114,10 @@ test.describe("UTM Installation Flow", () => {
     const wizardShell = page.locator("wizard-shell");
     await wizardShell.locator(".footer-left wa-button").click();
     await page.locator("welcome-view").locator("wa-button").click();
-    await page.locator('option-card[title="Virtual machine"]').click();
+    const vmOption = page.locator('option-card[heading="Virtual machine"]');
+    // Answered as an Apple silicon Mac, not one that can't run the VM
+    await expect(vmOption).toContainText("Run Home Assistant in UTM");
+    await vmOption.click();
 
     const checkView = page.locator("utm-check-view");
     const next = wizardShell.locator(".footer-right wa-button");
@@ -130,6 +138,13 @@ test.describe("UTM Installation Flow", () => {
       "UTM is installed (v4.6.0)"
     );
     await expect(next).toHaveJSProperty("disabled", false);
+    expect(
+      await page.evaluate(
+        () =>
+          (window as typeof window & { unexpectedCommands: string[] })
+            .unexpectedCommands
+      )
+    ).toEqual([]);
   });
 
   test("step 1: next button state depends on UTM installation", async ({
