@@ -1,5 +1,5 @@
 import { html, type TemplateResult } from "lit";
-import type { MessageKey } from "../localization/localize.js";
+import { localize } from "../localization/localize.js";
 import type { WizardFlow, WizardSelections } from "../state/wizard-state.js";
 import { isValidWifi, selectedWifi } from "../utils/wifi.js";
 import type { ProxmoxConfigureView } from "../views/proxmox/proxmox-configure-view.js";
@@ -17,7 +17,7 @@ export interface WizardStepView extends HTMLElement {
 interface BeforeNext {
   run(view: WizardStepView): Promise<boolean>;
   /** Shown on Next meanwhile */
-  label: MessageKey;
+  label(): string;
   /**
    * What makes a result stale, so a run left behind holds up nothing:
    * leaving the flow, or also changing any selection.
@@ -119,7 +119,7 @@ export const WIZARD_STEPS: Record<
       render: () => html`<proxmox-connect-view></proxmox-connect-view>`,
       beforeNext: {
         run: (view) => (view as ProxmoxConnectView).connect(),
-        label: "components.app_shell.connecting",
+        label: () => localize("components.app_shell.connecting"),
         // Connecting stores the session, which changes the selections
         until: "flow",
       },
@@ -136,7 +136,7 @@ export const WIZARD_STEPS: Record<
       // A problem Proxmox finds now can still be fixed on this step
       beforeNext: {
         run: (view) => (view as ProxmoxConfigureView).check(),
-        label: "components.app_shell.checking_settings",
+        label: () => localize("components.app_shell.checking_settings"),
         until: "selections",
       },
     },

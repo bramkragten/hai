@@ -267,7 +267,7 @@ export class AppShell extends LitElement {
     const step = wizardStep(flow, currentStep?.id);
     const nextDisabled = !this._isReady(step);
     const nextLabel = this._getNextLabel(currentStep?.id);
-    const busy = this._isBusy(step) ? step?.beforeNext?.label : undefined;
+    const busy = this._isBusy(step) ? step?.beforeNext?.label() : undefined;
 
     // A running flash keeps only Cancel, until it is stopping
     const flashRunning = currentStep?.id === "flash" && !this._flashError;
@@ -302,7 +302,7 @@ export class AppShell extends LitElement {
       <wizard-shell
         .nextDisabled=${nextDisabled || !!busy || this._verifyingDrive}
         .nextLabel=${busy
-          ? localize(busy)
+          ? busy
           : this._verifyingDrive
             ? localize("components.app_shell.checking_drive")
             : nextLabel}
