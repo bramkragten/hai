@@ -26,7 +26,11 @@ type Answer = HaSetupStatus | null | "rejected";
 const status = (
   progress: number | null,
   ...problems: HaSetupStatus["problems"]
-): HaSetupStatus => ({ core_install_progress: progress, problems });
+): HaSetupStatus => ({
+  core_install_progress: progress,
+  supervisor_update_progress: null,
+  problems,
+});
 
 describe("ha-setup", () => {
   const realNow = Date.now;
@@ -196,6 +200,38 @@ describe("ha-setup", () => {
     await settle();
 
     expect(reported).to.be.empty;
+  });
+
+  it("counts Supervisor updating itself as moving", async () => {
+    const reported: HaSetupProgress[] = [];
+    // A first pull failed, and the next one takes its time
+    mockSetup(
+      [10, 30, 50, 70, 90].map((update) => ({
+        ...status(null, "update_failed"),
+        supervisor_update_progress: update,
+      })),
+      6 * MINUTE
+    );
+
+    await wait(reported);
+
+    // It isn't the Core download, so the bar keeps waiting
+    expect(reported.every(({ progress }) => progress === null)).to.be.true;
+  });
+
+  it("doesn't stall once Core is downloaded and the landing page goes", async () => {
+    // Downloaded at 6 minutes, then Core starts and nothing answers
+    mockSetup([status(100, "update_failed"), null, null, null], 6 * MINUTE);
+    await wait();
+  });
+
+  it("takes a download that starts over for not done", async () => {
+    // Done at 6, starting over at 12, and still at 0% at 24
+    mockSetup(
+      [100, 0, 0, 0].map((progress) => status(progress, "update_failed")),
+      6 * MINUTE
+    );
+    await stalled(wait());
   });
 
   it("waits on while the download moves, problem or not", async () => {

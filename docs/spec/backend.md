@@ -331,13 +331,16 @@ pub trait HostBackend {
 
 Until Core runs, the Home Assistant OS landing page passes a few Supervisor
 API paths on without authentication. `ha_setup_status` reads three of them:
-`/supervisor-api/jobs/info` (the `home_assistant_core_install` job's
-progress), `/supervisor-api/network/info` (`host_internet` and
-`supervisor_internet`), and `/supervisor-api/resolution/info` (issues that
-can hold up the install). The VM flows show the progress and the most
-fundamental problem while they wait for `manifest.json`, and end the wait
-when a problem lasts 10 minutes without the download moving. Diagnostics
-record the status as fixed categories only, never Supervisor's logs or text.
+`/supervisor-api/jobs/info` (the progress of the `home_assistant_core_install`
+and `supervisor_update` jobs), `/supervisor-api/network/info`
+(`host_internet` and `supervisor_internet`), and
+`/supervisor-api/resolution/info` (`free_space`, `docker_ratelimit`, and
+`update_failed` for Supervisor or Core: the issues that hold up the install).
+The VM flows show Core's progress and the most fundamental problem while they
+wait for `manifest.json`. They end the wait when a problem lasts 10 minutes
+while neither download moves, unless Core is already downloaded: then
+Supervisor stops the landing page to start Core. Diagnostics record the
+status as fixed categories only, never Supervisor's logs or text.
 
 ---
 

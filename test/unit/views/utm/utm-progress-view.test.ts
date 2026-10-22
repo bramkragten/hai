@@ -702,7 +702,11 @@ describe("utm-progress-view", () => {
         case "check_ha_updated":
           return false;
         case "get_ha_setup_status":
-          return { core_install_progress: 42.4, problems: ["no_internet"] };
+          return {
+            core_install_progress: 42.4,
+            supervisor_update_progress: null,
+            problems: ["no_internet"],
+          };
       }
       throw new Error(`Unexpected IPC command: ${cmd}`);
     });
@@ -754,7 +758,11 @@ describe("utm-progress-view", () => {
           case "get_ha_setup_status":
             // Seen once, then still there 11 minutes on, without a download
             if (++statuses === 2) Date.now = () => now() + 11 * 60 * 1000;
-            return { core_install_progress: null, problems: ["no_internet"] };
+            return {
+              core_install_progress: null,
+              supervisor_update_progress: null,
+              problems: ["no_internet"],
+            };
         }
         throw new Error(`Unexpected IPC command: ${cmd}`);
       },

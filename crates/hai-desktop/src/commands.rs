@@ -1291,6 +1291,7 @@ mod tests {
             get_ha_setup_status(server.host_with_port()).await,
             Some(HaSetupStatus {
                 core_install_progress: Some(42.5),
+                supervisor_update_progress: None,
                 problems: vec![
                     hai_core::HaSetupProblem::NoInternet,
                     hai_core::HaSetupProblem::UpdateFailed,
@@ -1300,7 +1301,9 @@ mod tests {
         let lines = setup_status_lines();
         assert_eq!(lines.len(), 1, "{lines:?}");
         assert!(
-            lines[0].ends_with("supervisor core_install=25% problems=[NoInternet, UpdateFailed]"),
+            lines[0].ends_with(
+                "supervisor self_update=none core_install=25% problems=[NoInternet, UpdateFailed]"
+            ),
             "{lines:?}"
         );
         // Never the address, or Supervisor's references

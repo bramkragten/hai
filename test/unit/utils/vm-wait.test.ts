@@ -70,7 +70,11 @@ describe("vm-wait", () => {
           return updated;
         case "get_ha_setup_status":
           updated = true;
-          return { core_install_progress: 60, problems: ["docker_ratelimit"] };
+          return {
+            core_install_progress: 60,
+            supervisor_update_progress: null,
+            problems: ["docker_ratelimit"],
+          };
       }
       throw new Error(`Unexpected IPC command: ${cmd}`);
     });

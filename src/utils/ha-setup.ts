@@ -31,18 +31,12 @@ export function haSetupProblemMessage(problem: HaSetupProblem): string {
   switch (problem) {
     case "no_internet":
       return localize("utils.ha_setup.no_internet");
-    case "dns_server_failed":
-      return localize("utils.ha_setup.dns_server_failed");
-    case "ntp_sync_failed":
-      return localize("utils.ha_setup.ntp_sync_failed");
     case "free_space":
       return localize("utils.ha_setup.free_space");
     case "docker_ratelimit":
       return localize("utils.ha_setup.docker_ratelimit");
     case "update_failed":
       return localize("utils.ha_setup.update_failed");
-    case "fatal_error":
-      return localize("utils.ha_setup.fatal_error");
   }
 }
 
@@ -83,9 +77,11 @@ export interface HaSetupWaitOptions {
  * it serves `manifest.json`.
  *
  * A problem Supervisor reports shows at once, while the wait goes on. One
- * that lasts `HA_SETUP_STALL_MS` without the download moving ends the wait
+ * that lasts `HA_SETUP_STALL_MS` without a download moving ends the wait
  * with a `HaSetupStalledError`, rather than an hour-long timeout. Only a
  * report without it clears it: unanswered requests keep its clock running.
+ * Once Core is downloaded, Supervisor stops the landing page to start Core,
+ * so from then on only `manifest.json` or the timeout ends the wait.
  */
 export async function waitForHaSetup(
   ipAddress: string,
@@ -94,10 +90,12 @@ export async function waitForHaSetup(
   // The last problem reported, and since when
   let problem: HaSetupProblem | null = null;
   let problemSince = 0;
-  // The download moves when its measured progress changes, also when it
-  // starts over. A report without a measurement is not a move.
-  let lastProgress: number | undefined;
+  // A download moves when its measured progress changes, also when it starts
+  // over. A report without a measurement is not a move. Supervisor's own
+  // update counts too: it comes first, and Core's progress leaves it out.
+  const lastProgress = new Map<string, number>();
   let movedAt = Date.now();
+  let downloaded = false;
   // The wait can end while a request is out, cancelled or at its deadline
   let ended = false;
 
@@ -115,10 +113,17 @@ export async function waitForHaSetup(
         // No answer is no news: what shows stays, and its clocks run on
         if (status) {
           const progress = status.core_install_progress;
-          if (progress !== null && progress !== lastProgress) {
-            lastProgress = progress;
-            movedAt = now;
+          for (const [download, measured] of [
+            ["core", progress],
+            ["supervisor", status.supervisor_update_progress],
+          ] as const) {
+            if (measured !== null && measured !== lastProgress.get(download)) {
+              lastProgress.set(download, measured);
+              movedAt = now;
+            }
           }
+          // A download that starts over is not done
+          if (progress !== null) downloaded = progress >= 100;
           const reported = status.problems[0] ?? null;
           if (reported && !problem) problemSince = now;
           problem = reported;
@@ -131,6 +136,7 @@ export async function waitForHaSetup(
 
         if (
           problem &&
+          !downloaded &&
           now - Math.max(problemSince, movedAt) >= HA_SETUP_STALL_MS
         ) {
           throw new HaSetupStalledError(problem, `http://${ipAddress}`);

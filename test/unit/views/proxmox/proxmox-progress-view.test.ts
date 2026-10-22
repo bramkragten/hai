@@ -381,7 +381,11 @@ describe("proxmox-progress-view", () => {
         case "check_ha_updated":
           return false;
         case "get_ha_setup_status":
-          return { core_install_progress: 87.6, problems: ["free_space"] };
+          return {
+            core_install_progress: 87.6,
+            supervisor_update_progress: null,
+            problems: ["free_space"],
+          };
       }
       throw new Error(`Unexpected IPC command: ${cmd}`);
     });

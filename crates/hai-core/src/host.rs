@@ -108,6 +108,10 @@ async fn get(ip: &str, path: &str) -> Option<reqwest::Response> {
 /// The Supervisor job that downloads and installs Home Assistant Core.
 const CORE_INSTALL_JOB: &str = "home_assistant_core_install";
 
+/// The Supervisor job that updates Supervisor itself, which on a first boot
+/// usually runs before Core installs.
+const SUPERVISOR_UPDATE_JOB: &str = "supervisor_update";
+
 /// The `data` of a successful Supervisor API reply.
 #[derive(Deserialize)]
 struct SupervisorReply<T> {
@@ -121,8 +125,22 @@ struct JobsInfo {
 
 #[derive(Deserialize)]
 struct Job {
-    name: String,
+    /// Supervisor names a scheduled job only once it starts.
+    name: Option<String>,
     progress: f64,
+    #[serde(default)]
+    child_jobs: Vec<Job>,
+}
+
+/// The progress (0-100) of the job called `name`, anywhere in the tree.
+fn job_progress(jobs: &[Job], name: &str) -> Option<f64> {
+    jobs.iter().find_map(|job| {
+        if job.name.as_deref() == Some(name) {
+            Some(job.progress.clamp(0.0, 100.0))
+        } else {
+            job_progress(&job.child_jobs, name)
+        }
+    })
 }
 
 #[derive(Deserialize)]
@@ -146,7 +164,7 @@ struct Issue {
 
 /// Where Supervisor found an issue: only Supervisor's and Core's are told
 /// apart, the rest is left behind here and never reaches diagnostics.
-#[derive(Deserialize, Default, PartialEq)]
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 enum IssueContext {
     Supervisor,
@@ -156,16 +174,19 @@ enum IssueContext {
     Other,
 }
 
-/// The Supervisor issues that can hold up installing Core.
+/// The Supervisor issues that hold up installing Core.
+///
+/// Others are left out on purpose. Supervisor checks DNS servers only once
+/// the system has internet, and names each one that fails, while the rest
+/// resolve. It raises a failed time sync right before it sets the clock
+/// itself. And Core's fatal error comes from starting Core, which on a first
+/// boot is the landing page itself, so no landing page passes it on.
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum IssueType {
-    DnsServerFailed,
-    NtpSyncFailed,
     FreeSpace,
     DockerRatelimit,
     UpdateFailed,
-    FatalError,
     #[serde(other)]
     Other,
 }
@@ -173,8 +194,6 @@ enum IssueType {
 impl Issue {
     fn problem(self) -> Option<HaSetupProblem> {
         Some(match self.kind {
-            IssueType::DnsServerFailed => HaSetupProblem::DnsServerFailed,
-            IssueType::NtpSyncFailed => HaSetupProblem::NtpSyncFailed,
             IssueType::FreeSpace => HaSetupProblem::FreeSpace,
             IssueType::DockerRatelimit => HaSetupProblem::DockerRatelimit,
             // Core installs once Supervisor is up to date. A plugin's update
@@ -184,12 +203,7 @@ impl Issue {
             {
                 HaSetupProblem::UpdateFailed
             }
-            // Supervisor also raises it for a plugin or an app repository
-            // that fails, which Core does not wait for
-            IssueType::FatalError if self.context == IssueContext::Core => {
-                HaSetupProblem::FatalError
-            }
-            IssueType::UpdateFailed | IssueType::FatalError | IssueType::Other => return None,
+            IssueType::UpdateFailed | IssueType::Other => return None,
         })
     }
 }
@@ -219,11 +233,8 @@ async fn ha_setup_status(ip: &str) -> Option<HaSetupStatus> {
         return None;
     };
 
-    let core_install_progress = jobs
-        .jobs
-        .into_iter()
-        .find(|job| job.name == CORE_INSTALL_JOB)
-        .map(|job| job.progress.clamp(0.0, 100.0));
+    let core_install_progress = job_progress(&jobs.jobs, CORE_INSTALL_JOB);
+    let supervisor_update_progress = job_progress(&jobs.jobs, SUPERVISOR_UPDATE_JOB);
     // Unknown connectivity is not a problem: Supervisor checks it after starting
     let offline =
         network.host_internet == Some(false) || network.supervisor_internet == Some(false);
@@ -237,6 +248,7 @@ async fn ha_setup_status(ip: &str) -> Option<HaSetupStatus> {
 
     Some(HaSetupStatus {
         core_install_progress,
+        supervisor_update_progress,
         problems,
     })
 }
@@ -374,10 +386,14 @@ mod tests {
         supervisor_reply(
             &mut server,
             "/jobs/info",
+            // A scheduled job has no name until it starts, and the download
+            // itself is a child of the install
             r#"{"ignore_conditions":[],"jobs":[
-                {"name":"supervisor_update","progress":80,"done":false},
+                {"name":null,"progress":0,"done":false,"child_jobs":[]},
+                {"name":"supervisor_update","progress":80,"done":false,"child_jobs":[]},
                 {"name":"home_assistant_core_install","progress":42.5,"done":false,
-                 "stage":null,"errors":[],"child_jobs":[]}]}"#,
+                 "stage":null,"errors":[],"child_jobs":[
+                    {"name":"docker_interface_install","progress":42.5,"done":false,"child_jobs":[]}]}]}"#,
         )
         .await;
         supervisor_reply(&mut server, "/network/info", ONLINE).await;
@@ -392,6 +408,7 @@ mod tests {
             ha_setup_status(&server.host_with_port()).await,
             Some(HaSetupStatus {
                 core_install_progress: Some(42.5),
+                supervisor_update_progress: Some(80.0),
                 problems: vec![],
             })
         );
@@ -419,7 +436,7 @@ mod tests {
             r#"{"issues":[
                 {"type":"update_failed","context":"supervisor","reference":null,"uuid":"a"},
                 {"type":"multiple_data_disks","context":"system","reference":"sda","uuid":"b"},
-                {"type":"dns_server_failed","context":"dns_server","reference":"dns://192.0.2.1","uuid":"c"},
+                {"type":"free_space","context":"system","reference":null,"uuid":"c"},
                 {"type":"update_failed","context":"core","reference":null,"uuid":"d"}]}"#,
         )
         .await;
@@ -428,9 +445,10 @@ mod tests {
             ha_setup_status(&server.host_with_port()).await,
             Some(HaSetupStatus {
                 core_install_progress: None,
+                supervisor_update_progress: None,
                 problems: vec![
                     HaSetupProblem::NoInternet,
-                    HaSetupProblem::DnsServerFailed,
+                    HaSetupProblem::FreeSpace,
                     HaSetupProblem::UpdateFailed,
                 ],
             })
@@ -479,30 +497,26 @@ mod tests {
                 .problems
         };
 
-        // An app repository or a plugin that fails, or a plugin's update,
-        // doesn't keep Core from installing and starting
+        // A plugin's update, a DNS server among others that resolve, a time
+        // sync Supervisor fixes itself, and a fatal error the landing page
+        // can't be up to pass on: none of them keep Core from installing
         assert_eq!(
             problems(
                 r#"[
-                {"type":"fatal_error","context":"store","reference":"https://github.com/hassio-addons/repository","uuid":"a"},
-                {"type":"fatal_error","context":"plugin","reference":"observer","uuid":"b"},
-                {"type":"update_failed","context":"plugin","reference":"audio","uuid":"c"}]"#
+                {"type":"update_failed","context":"plugin","reference":"audio","uuid":"a"},
+                {"type":"dns_server_failed","context":"dns_server","reference":"dns://192.0.2.1","uuid":"b"},
+                {"type":"ntp_sync_failed","context":"system","reference":null,"uuid":"c"},
+                {"type":"fatal_error","context":"store","reference":"https://github.com/hassio-addons/repository","uuid":"d"},
+                {"type":"fatal_error","context":"core","reference":null,"uuid":"e"}]"#
                     .into()
             )
             .await,
             []
         );
-        assert_eq!(
-            problems(
-                r#"[{"type":"fatal_error","context":"core","reference":null,"uuid":"d"}]"#.into()
-            )
-            .await,
-            [HaSetupProblem::FatalError]
-        );
         for context in ["supervisor", "core"] {
             assert_eq!(
                 problems(format!(
-                    r#"[{{"type":"update_failed","context":"{context}","reference":null,"uuid":"e"}}]"#
+                    r#"[{{"type":"update_failed","context":"{context}","reference":null,"uuid":"f"}}]"#
                 ))
                 .await,
                 [HaSetupProblem::UpdateFailed],

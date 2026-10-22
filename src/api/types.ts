@@ -389,8 +389,13 @@ export type HaSetupStatus = {
  */
 core_install_progress: number | null,
 /**
+ * Progress (0-100) of Supervisor updating itself, which on a first boot
+ * usually comes before the Core download.
+ */
+supervisor_update_progress: number | null,
+/**
  * Problems that can hold up the install, most fundamental first.
  */
 problems: Array<HaSetupProblem>, };
 
-export type HaSetupProblem = "no_internet" | "dns_server_failed" | "ntp_sync_failed" | "free_space" | "docker_ratelimit" | "update_failed" | "fatal_error";
+export type HaSetupProblem = "no_internet" | "free_space" | "docker_ratelimit" | "update_failed";

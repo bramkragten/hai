@@ -63,12 +63,16 @@ static LAST_SETUP_STATUS: Mutex<Option<String>> = Mutex::new(None);
 /// changes. Only the fixed problem kinds and the progress in quarters reach
 /// the log, never Supervisor's own text.
 pub fn setup_status(status: &hai_core::HaSetupStatus) {
-    let progress = status.core_install_progress.map_or_else(
-        || "none".to_owned(),
-        |progress| format!("{}%", (progress / 25.0).floor() as u8 * 25),
-    );
+    let quarter = |progress: Option<f64>| {
+        progress.map_or_else(
+            || "none".to_owned(),
+            |progress| format!("{}%", (progress / 25.0).floor() as u8 * 25),
+        )
+    };
     let line = format!(
-        "supervisor core_install={progress} problems={:?}",
+        "supervisor self_update={} core_install={} problems={:?}",
+        quarter(status.supervisor_update_progress),
+        quarter(status.core_install_progress),
         status.problems
     );
     if let Ok(mut last) = LAST_SETUP_STATUS.lock() {
@@ -277,12 +281,9 @@ pub enum ErrorCategory {
     /// A problem Supervisor reported held up installing Home Assistant: the
     /// frontend's `home_assistant_` codes, one per `HaSetupProblem`.
     HomeAssistantNoInternet,
-    HomeAssistantDnsServerFailed,
-    HomeAssistantNtpSyncFailed,
     HomeAssistantFreeSpace,
     HomeAssistantDockerRatelimit,
     HomeAssistantUpdateFailed,
-    HomeAssistantFatalError,
     /// Any other value. A code without a category is still logged, as this;
     /// the value itself never reaches the log.
     #[serde(other)]
@@ -419,17 +420,18 @@ mod tests {
         use hai_core::{HaSetupProblem, HaSetupStatus};
 
         clear_test_log_tail();
-        let status = |progress, problems: &[HaSetupProblem]| HaSetupStatus {
-            core_install_progress: progress,
+        let status = |update, install, problems: &[HaSetupProblem]| HaSetupStatus {
+            supervisor_update_progress: update,
+            core_install_progress: install,
             problems: problems.to_vec(),
         };
 
-        setup_status(&status(None, &[HaSetupProblem::UpdateFailed]));
+        setup_status(&status(Some(10.0), None, &[HaSetupProblem::UpdateFailed]));
         // The same again, or a download step within its quarter, adds nothing
-        setup_status(&status(None, &[HaSetupProblem::UpdateFailed]));
-        setup_status(&status(Some(30.0), &[]));
-        setup_status(&status(Some(49.9), &[]));
-        setup_status(&status(Some(100.0), &[]));
+        setup_status(&status(Some(20.0), None, &[HaSetupProblem::UpdateFailed]));
+        setup_status(&status(None, Some(30.0), &[]));
+        setup_status(&status(None, Some(49.9), &[]));
+        setup_status(&status(None, Some(100.0), &[]));
 
         let lines: Vec<_> = test_log_tail()
             .into_iter()
@@ -439,9 +441,9 @@ mod tests {
         assert_eq!(
             lines,
             [
-                "supervisor core_install=none problems=[UpdateFailed]",
-                "supervisor core_install=25% problems=[]",
-                "supervisor core_install=100% problems=[]",
+                "supervisor self_update=0% core_install=none problems=[UpdateFailed]",
+                "supervisor self_update=none core_install=25% problems=[]",
+                "supervisor self_update=none core_install=100% problems=[]",
             ]
         );
     }
@@ -451,15 +453,7 @@ mod tests {
         use hai_core::HaSetupProblem::*;
 
         // The frontend ends a wait that a problem holds up with its code
-        for problem in [
-            NoInternet,
-            DnsServerFailed,
-            NtpSyncFailed,
-            FreeSpace,
-            DockerRatelimit,
-            UpdateFailed,
-            FatalError,
-        ] {
+        for problem in [NoInternet, FreeSpace, DockerRatelimit, UpdateFailed] {
             let code = format!(
                 "home_assistant_{}",
                 serde_json::to_value(problem).unwrap().as_str().unwrap()

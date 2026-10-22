@@ -495,6 +495,9 @@ pub struct VmStatusInfo {
 pub struct HaSetupStatus {
     /// Progress (0-100) of the Core download, while Supervisor runs it.
     pub core_install_progress: Option<f64>,
+    /// Progress (0-100) of Supervisor updating itself, which on a first boot
+    /// usually comes before the Core download.
+    pub supervisor_update_progress: Option<f64>,
     /// Problems that can hold up the install, most fundamental first.
     pub problems: Vec<HaSetupProblem>,
 }
@@ -508,18 +511,12 @@ pub struct HaSetupStatus {
 pub enum HaSetupProblem {
     /// The host or Supervisor cannot reach the internet.
     NoInternet,
-    /// The DNS server does not resolve names.
-    DnsServerFailed,
-    /// The clock could not be set, which fails TLS connections.
-    NtpSyncFailed,
     /// The data disk is (almost) full.
     FreeSpace,
     /// The container registry limits the pulls.
     DockerRatelimit,
     /// Downloading an update of Supervisor or Core failed.
     UpdateFailed,
-    /// Home Assistant Core failed to start.
-    FatalError,
 }
 
 #[cfg(test)]
