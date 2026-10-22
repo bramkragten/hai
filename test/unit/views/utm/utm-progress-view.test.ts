@@ -10,8 +10,6 @@ import { wizardState } from "../../../../src/state/wizard-state.js";
 import "../../../../src/views/utm/utm-progress-view.js";
 import "../../../../src/views/utm/utm-configure-view.js";
 import type { UtmProgressView } from "../../../../src/views/utm/utm-progress-view.js";
-import { PollTimeoutError } from "../../../../src/utils/polling.js";
-import { HaSetupStalledError } from "../../../../src/utils/ha-setup.js";
 import {
   deferred,
   ipcError,
@@ -737,7 +735,10 @@ describe("utm-progress-view", () => {
 
   it("ends with what held up Home Assistant, and keeps waiting on retry", async () => {
     wizardState.setSelection("vmId", "existing-vm");
+    const now = Date.now;
     const logged: Record<string, unknown>[] = [];
+    let statuses = 0;
+    let solved = false;
     mockTauriIpc(
       (cmd, args) => {
         switch (cmd) {
@@ -747,61 +748,85 @@ describe("utm-progress-view", () => {
           case "get_utm_vm_status":
             return { status: "started", ip_address: "192.0.2.50" };
           case "check_ha_ready":
-          case "check_ha_updated":
             return true;
+          case "check_ha_updated":
+            return solved;
+          case "get_ha_setup_status":
+            // Seen once, then still there 11 minutes on, without a download
+            if (++statuses === 2) Date.now = () => now() + 11 * 60 * 1000;
+            return { core_install_progress: null, problems: ["no_internet"] };
         }
         throw new Error(`Unexpected IPC command: ${cmd}`);
       },
       { includeLogs: true }
     );
-    const el = mount();
-    const internal = el as unknown as { _waitForHaUpdated?(): Promise<void> };
-    internal._waitForHaUpdated = async () => {
-      throw new HaSetupStalledError("no_internet", "http://192.0.2.50");
-    };
+    try {
+      const el = mount();
+      const failed = await oneEvent(el, "install-error");
+      await el.updateComplete;
 
-    const failed = await oneEvent(el, "install-error");
-    await el.updateComplete;
+      expect(failed.detail.retryable).to.be.true;
+      expect(errorText(el))
+        .to.contain("can't reach the internet")
+        .and.contain("made no progress for 10 minutes");
+      // Diagnostics get the problem as a fixed category, not its text. An
+      // earlier test's late cleanup may log here too, as the application.
+      const failure = () =>
+        logged.find(
+          (event) => event.flow === "utm" && event.outcome === "failed"
+        );
+      await waitUntil(failure);
+      expect(failure()).to.include({
+        stage: "updating",
+        error: "home_assistant_no_internet",
+      });
 
-    expect(failed.detail.retryable).to.be.true;
-    expect(errorText(el))
-      .to.contain("can't reach the internet")
-      .and.contain("made no progress for 10 minutes");
-    // Diagnostics get the problem as a fixed category, not its text
-    await waitUntil(() => logged.some((event) => event.outcome === "failed"));
-    expect(logged.find((event) => event.outcome === "failed")).to.include({
-      flow: "utm",
-      stage: "updating",
-      error: "home_assistant_no_internet",
-    });
-
-    delete internal._waitForHaUpdated;
-    const completed = oneEvent(el, "install-complete");
-    el.retry();
-    await completed;
-    expect(wizardState.getState().selections.vmId).to.equal("existing-vm");
+      Date.now = now;
+      solved = true;
+      const completed = oneEvent(el, "install-complete");
+      el.retry();
+      await completed;
+      expect(wizardState.getState().selections.vmId).to.equal("existing-vm");
+    } finally {
+      Date.now = now;
+    }
   });
 
   it("allows a timed-out readiness check to resume the existing VM", async () => {
     wizardState.setSelection("vmId", "existing-vm");
+    const now = Date.now;
+    let ready = false;
     mockTauriIpc((cmd) => {
       if (cmd === "get_utm_vm_status")
         return { status: "started", ip_address: "192.0.2.50" };
+      if (cmd === "check_ha_ready") {
+        // The first attempt only answers once its 5 minutes have passed
+        if (!ready) Date.now = () => now() + 6 * 60 * 1000;
+        return ready;
+      }
       if (cmd === "check_ha_updated") return true;
       throw new Error(`Unexpected IPC command: ${cmd}`);
     });
-    const el = mount();
-    const internal = el as unknown as { _waitForHaReady(): Promise<void> };
-    internal._waitForHaReady = async () => {
-      throw new PollTimeoutError("Try again to keep waiting");
-    };
-    const event = await oneEvent(el, "install-error");
-    expect(event.detail.retryable).to.be.true;
-    internal._waitForHaReady = async () => {};
-    const completed = oneEvent(el, "install-complete");
-    el.retry();
-    await completed;
-    expect(wizardState.getState().selections.vmId).to.equal("existing-vm");
+    try {
+      const el = mount();
+      const event = await oneEvent(el, "install-error");
+      expect(event.detail.retryable).to.be.true;
+      await el.updateComplete;
+      expect(
+        el
+          .shadowRoot!.querySelector("install-progress")!
+          .shadowRoot!.querySelector(".error-message")!.textContent
+      ).to.contain("did not respond at 192.0.2.50 within 5 minutes");
+
+      Date.now = now;
+      ready = true;
+      const completed = oneEvent(el, "install-complete");
+      el.retry();
+      await completed;
+      expect(wizardState.getState().selections.vmId).to.equal("existing-vm");
+    } finally {
+      Date.now = now;
+    }
   });
 
   for (const rejection of [undefined, {}, "", "   "]) {
