@@ -319,7 +319,11 @@ for (const tag of [
         .textContent?.trim();
     }, tag);
     expect(initialStatus).toBe("");
-    await expect(page.getByRole("status")).toHaveText("Downloading");
+    // The stage's live region, then the warning's, which waits empty for a
+    // problem so its first one is announced too
+    await expect(page.getByRole("status")).toHaveCount(2);
+    await expect(page.getByRole("status").first()).toHaveText("Downloading");
+    await expect(page.getByRole("status").nth(1)).toHaveText("");
     await expect(
       page.getByRole("list", { name: "Installation stages" })
     ).toBeVisible();
