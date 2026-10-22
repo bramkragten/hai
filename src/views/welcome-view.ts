@@ -235,7 +235,7 @@ export class WelcomeView extends LitElement {
   }
 
   private _playEasterEgg() {
-    const audio = new Audio("/assets/audio/home-assistant.wav");
+    const audio = new Audio("/assets/audio/home-assistant.mp3");
     audio.play().catch((error) => {
       logFrontendError(error);
     });
