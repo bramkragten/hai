@@ -12,6 +12,7 @@ import {
   renderCasitaSad,
 } from "./install-mascot.js";
 import "./progress-bar.js";
+import "./inline-notice.js";
 import { renderErrorHelp } from "../utils/installer-error.js";
 import { openExternalLink } from "../utils/external-url.js";
 import {
@@ -322,20 +323,12 @@ export class InstallProgress extends LitElement {
 
       /* Always there, as a live region, but takes no room while empty */
       .warning {
-        box-sizing: border-box;
         width: 100%;
         max-width: 400px;
-        margin: 0;
       }
 
-      .warning.shown {
+      .warning inline-notice {
         margin-bottom: 1rem;
-        padding: 0.5rem 0 0.5rem 1rem;
-        border-left: 3px solid var(--ha-warning-color, #f5a623);
-        font-size: 0.9375rem;
-        line-height: 1.5;
-        color: var(--ha-text-color, #212121);
-        overflow-wrap: anywhere;
       }
 
       .address {
@@ -522,9 +515,11 @@ export class InstallProgress extends LitElement {
             `
           : ""}
       </div>
-      <p class="warning ${warning ? "shown" : ""}" role="status">
-        ${warning ?? nothing}
-      </p>
+      <div class="warning" role="status">
+        ${warning
+          ? html`<inline-notice><p>${warning}</p></inline-notice>`
+          : nothing}
+      </div>
       ${this.address
         ? html`<p class="address">
             ${localizeContent("components.install_progress.checking_address", {

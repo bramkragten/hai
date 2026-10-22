@@ -74,7 +74,7 @@ describe("install-progress", () => {
     const region = el.shadowRoot!.querySelector(".warning")!;
     expect(region.getAttribute("role")).to.equal("status");
     expect(region.textContent?.trim()).to.equal("");
-    expect(region.classList.contains("shown")).to.be.false;
+    expect(region.querySelector("inline-notice")).to.be.null;
     // Empty, it takes no room between the progress and the address
     expect(region.getBoundingClientRect().height).to.equal(0);
 
@@ -88,7 +88,8 @@ describe("install-progress", () => {
     expect(region.textContent?.trim()).to.equal(
       "Home Assistant can't reach the internet."
     );
-    expect(region.classList.contains("shown")).to.be.true;
+    // In the notice every warning uses
+    expect(region.querySelector("inline-notice")).to.exist;
 
     el.warning = "Home Assistant couldn't download an update.";
     await el.updateComplete;
@@ -100,7 +101,7 @@ describe("install-progress", () => {
     el.warning = null;
     await el.updateComplete;
     expect(region.textContent?.trim()).to.equal("");
-    expect(region.classList.contains("shown")).to.be.false;
+    expect(region.querySelector("inline-notice")).to.be.null;
 
     // An error replaces the progress, warning included
     el.error = "The installation made no progress for 10 minutes.";
