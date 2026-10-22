@@ -68,13 +68,6 @@ export class UtmCheckView extends LitElement {
         max-width: 500px;
       }
 
-      @media (prefers-color-scheme: dark) {
-        .status-card {
-          background-color: var(--ha-card-background, #1e1e1e);
-          border-color: var(--ha-border-color, #333333);
-        }
-      }
-
       casita-mascot {
         width: 96px;
         height: 96px;
@@ -166,14 +159,8 @@ export class UtmCheckView extends LitElement {
       .warning-title {
         font-size: 0.875rem;
         font-weight: 500;
-        color: var(--ha-text-color, #212121);
+        color: var(--ha-warning-heading-color, #212121);
         margin: 0;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        .warning-title {
-          color: #ffb74d;
-        }
       }
 
       .warning-description {

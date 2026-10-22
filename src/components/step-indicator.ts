@@ -32,7 +32,7 @@ export class StepIndicator extends LitElement {
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background-color: var(--ha-border-color, #e0e0e0);
+        background-color: var(--ha-inactive-color, #e0e0e0);
         transition: all 0.2s ease;
       }
 
@@ -59,22 +59,12 @@ export class StepIndicator extends LitElement {
       .step-connector {
         width: 24px;
         height: 2px;
-        background-color: var(--ha-border-color, #e0e0e0);
+        background-color: var(--ha-inactive-color, #e0e0e0);
         transition: background-color 0.2s ease;
       }
 
       .step-connector.completed {
         background-color: var(--ha-primary-color, #03a9f4);
-      }
-
-      @media (prefers-color-scheme: dark) {
-        .step-dot {
-          background-color: #444444;
-        }
-
-        .step-connector {
-          background-color: #444444;
-        }
       }
 
       /* Keep the other names in the accessibility tree when only the current

@@ -62,13 +62,6 @@ export class UtmConfigureView extends LitElement {
         box-sizing: border-box;
         max-width: 500px;
       }
-
-      @media (prefers-color-scheme: dark) {
-        .config-card {
-          background-color: var(--ha-card-background, #1e1e1e);
-          border-color: var(--ha-border-color, #333333);
-        }
-      }
     `,
   ];
 

@@ -168,18 +168,12 @@ export class InstallProgress extends LitElement {
 
       .stage-dot {
         /* A pending stage's color, which the current stage pulses to */
-        --stage-dot-idle: var(--ha-border-color, #e0e0e0);
+        --stage-dot-idle: var(--ha-inactive-color, #e0e0e0);
         width: 8px;
         height: 8px;
         border-radius: 50%;
         background-color: var(--stage-dot-idle);
         transition: background-color 0.3s ease;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        .stage-dot {
-          --stage-dot-idle: #444444;
-        }
       }
 
       .stage-dot.active {

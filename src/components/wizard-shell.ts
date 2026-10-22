@@ -26,12 +26,6 @@ export class WizardShell extends LitElement {
         border-bottom: 1px solid var(--ha-border-color, #e0e0e0);
       }
 
-      @media (prefers-color-scheme: dark) {
-        .header {
-          border-bottom-color: var(--ha-border-color, #333333);
-        }
-      }
-
       .header-center {
         flex: 1;
         min-width: 0;
@@ -78,12 +72,6 @@ export class WizardShell extends LitElement {
       .footer-right {
         display: flex;
         gap: 1rem;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        .footer {
-          border-top-color: var(--ha-border-color, #333333);
-        }
       }
     `,
   ];

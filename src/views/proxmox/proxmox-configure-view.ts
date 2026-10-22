@@ -126,13 +126,6 @@ export class ProxmoxConfigureView extends LitElement {
         flex-shrink: 0;
       }
 
-      @media (prefers-color-scheme: dark) {
-        .config-card {
-          background-color: var(--ha-card-background, #1e1e1e);
-          border-color: var(--ha-border-color, #333333);
-        }
-      }
-
       .loading-text {
         font-size: 0.875rem;
         color: var(--ha-secondary-text-color, #9e9e9e);
